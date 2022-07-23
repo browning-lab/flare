@@ -1,0 +1,41 @@
+#!/bin/bash
+if [ ! -f flare.jar ]; then
+  echo
+  echo "Download flare program: flare.jar"
+  echo
+  wget https://faculty.washington.edu/browning/flare.jar
+fi
+
+if [ ! -f flare.ref.vcf.gz ]; then
+    echo
+    echo "Download test VCF file: flare.ref.vcf.gz"
+    echo
+    wget https://raw.githubusercontent.com/browning-lab/flare/master/test/flare.ref.vcf.gz
+fi
+
+if [ ! -f flare.gt.vcf.gz ]; then
+    echo
+    echo "Download test VCF file: flare.gt.vcf.gz"
+    echo
+    wget https://raw.githubusercontent.com/browning-lab/flare/master/test/flare.gt.vcf.gz
+fi
+
+if [ ! -f flare.chr1.map ]; then
+    echo
+    echo "Download genetic map: flare.chr1.map"
+    echo
+    wget https://raw.githubusercontent.com/browning-lab/flare/master/test/flare.chr1.map
+fi
+
+if [ ! -f flare.ref.panel ]; then
+    echo
+    echo "Download reference haplotype to reference panel map: flare.ref.panel"
+    echo
+    wget https://raw.githubusercontent.com/browning-lab/flare/master/test/flare.ref.panel
+fi
+
+echo
+echo "Run flare analysis of test data"
+echo
+java -jar flare.jar ref=flare.ref.vcf.gz gt=flare.gt.vcf.gz map=flare.chr1.map ref-panel=flare.ref.panel out=flare.out
+

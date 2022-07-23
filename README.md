@@ -1,0 +1,288 @@
+# flare
+
+The **flare** program uses a set of reference haplotypes
+to infer the ancestry at each genetic marker in a set of admixed target
+haplotypes. The **flare** program is fast, accurate, and memory-efficient.
+
+Last updated: July 23, 2022  
+Current version: 0.1.0
+
+## Contents
+
+* [Installation](#installation)
+* [Running flare](#running-flare)
+  * [Required parameters](#required-parameters)
+  * [Optional parameters](#optional-parameters)
+* [Output files](#output-files)
+* [Model file format](#model-file-format)
+* [The model and em parameters](#the-model-and-em-parameters)
+* [License](#license)
+* [Citation](#citation)
+
+## Installation
+
+You can download the latest executable file,
+[flare.jar](https://faculty.washington.edu/browning/flare.jar),
+with the command:
+
+    wget https://faculty.washington.edu/browning/flare.jar
+
+or you can download the source files and create the executable file
+with the commands:
+
+    git clone https://github.com/browning-lab/flare.git
+    javac -cp flare/src/ flare/src/admix/AdmixMain.java
+    jar cfe flare.jar admix/AdmixMain -C flare/src/ ./
+    jar -i flare.jar
+
+[Contents](#contents)
+
+## Running flare
+
+The **flare** program requires Java version 1.8 (or a later version). Use of an
+earlier Java version will produce an "Unsupported Class Version" error.
+
+The command:
+
+    java -jar flare.jar
+
+prints a summary of the command line arguments.
+
+To run **flare**, enter the following command:
+
+    java -Xmx[GB]g -jar flare.jar [arguments]
+
+where **[GB]** is the maximum number of gigabytes of memory to use, and
+**[arguments]** is a space-separated list of parameter values, each expressed as
+**parameter=value**.
+
+The shell script
+[run.flare.test](https://raw.githubusercontent.com/browning-lab/flare/master/test/run.flare.test)
+will run a test **flare** analysis.
+
+[Contents](#contents)
+
+### Required parameters
+
+The **flare** program has five required parameters. Two of the required
+parameters specify
+[Variant Call Format](https://faculty.washington.edu/browning/intro-to-vcf.html)
+(VCF) files.  A VCF record may have multiple ALT alleles and must
+include a genotype (GT) FORMAT subfield. **All genotypes must be phased and have
+no missing alleles**.
+If a VCF file has unphased or missing genotypes, you can phase the genotypes and
+fill in the missing genotypes using the
+[Beagle](https://faculty.washington.edu/browning/beagle/beagle.html) program.
+Any input file with a name ending in ".gz" is assumed to be gzip-compressed.
+
+* **ref=[file]** where **[file]** is the reference VCF file
+which containing the genotype data for each reference panel.
+Individuals who are in the same reference panel should be from the same
+source population. A reference panel should not normally contain admixed samples.
+
+* **ref-panel=[file]** where **[file]** is a white-space delimited file with
+two fields per line that gives the reference panel for each reference sample.
+Each reference panel should contain individuals from one ancestral population.
+The first field on a line is a sample identifier in the reference VCF file
+(see the **ref** parameter), and the second field is the name of the ancestral
+population.
+
+* **gt=[file]** where **[file]** is the target VCF
+file containing admixed target samples whose ancestry at each marker will
+be inferred.  All admixed target individuals should be sampled from the
+same population.
+
+* **map=[file]** where **[file]** is a
+[PLINK format genetic map](http://zzz.bwh.harvard.edu/plink/data.shtml#map)
+with cM units. Positions of markers that are between genetic map positions are 
+estimated using linear interpolation. The chromosome identifiers
+in the genetic map and the input VCF files must match. HapMap genetic maps 
+in cM units are available for
+[GRCh36](http://bochet.gcc.biostat.washington.edu/beagle/genetic_maps/),
+[GRCh37](http://bochet.gcc.biostat.washington.edu/beagle/genetic_maps/), and
+[GRCh38](http://bochet.gcc.biostat.washington.edu/beagle/genetic_maps/).
+
+* **out=[string]** where **[string]** is the output filename prefix.
+
+[Contents](#contents)
+
+### Optional parameters
+
+* **min-maf=[number < 0.5]** specifies the minimum minor allele frequency in
+the reference VCF file in order for a marker to be included in the
+analysis (**default: min-maf=0.005**).
+For multi-allelic markers, the minor allele frequency is the second-largest
+allele frequency.
+
+* **probs=[true/false]** specifies whether posterior ancestry probabilities
+will be reported (**default: probs=false**). The ancestry
+with highest posterior probability for each haplotype and marker is _always_
+reported in the output VCF file.
+If **probs=true**, posterior probabilities for each ancestry, haplotype, and
+marker will also be reported in the output VCF file.
+Reporting posterior probabilities will modestly increase memory use and
+computation time and significantly increase the size of the output VCF file.
+
+* **gen=[integer ≥ 1]** specifies the number of generations since
+admixture (**default: gen=10**). If **em=true**, the specified **gen** parameter
+is an initial value for the **gen** parameter that will be used in the
+parameter estimation algorithm. The **gen** parameter is ignored if the
+**model** parameter is used.
+
+* **model=[file]** where **[file]** is a white-space delimited file containing
+model parameters (see [**Model file format**](#model-file-format)). If the
+**model** parameter is not used, **flare** will supply a reasonable set of
+model parameters (see the [**flare** paper](#citation) for details).
+If **em=true** (the default), **flare** will estimate the number of
+generations since admixture and the proportion of target genotypes with each
+ancestry and will replace the values for these two parameters in the **model**
+file with their estimated values.
+The model parameters used in the analysis are reported in the output
+[**.model**](#output-files) file.
+
+* **em=[true/false]** specifies whether the number of generations since
+admixture and the proportion of target genotypes with each ancestry will be
+estimated using an iterative expectation maximization (EM) algorithm
+prior to inferring local ancestry (**default: em=true**).
+
+* **nthreads=[integer ≥ 1]** specifies the number of computational threads to
+use for the analysis. The default **nthreads** parameter is the number of
+CPU cores.  The **nthreads** parameter value is printed in the output **log**
+file.
+
+* **seed=[integer]** specifies the seed for random number generation
+(**default: seed=-99999**). Repeating an analysis with the same **seed** and
+**nthreads** parameters will produce the same local ancestry estimates.
+
+* **excludesamples=[file]** where [file] is a text file containing samples
+(one sample identifier per line) that are to be excluded from the analysis.
+
+* **excludemarkers=[file]** where [file] is a text file containing markers
+(one marker identifier per line) that are to be excluded from the analysis.
+A marker identifier can be an identifier from the VCF record ID field, or it
+can be a VCF record's CHROM and POS fields separated by a colon
+(i.e. "CHROM:POS").
+
+[Contents](#contents)
+
+## Output files
+The **flare** program produces three output files: a **log** file, a
+**model** file, and a **VCF** file.
+
+The output **log** file (.log) contains a summary of the analysis.
+
+The output **model** file (.model) contains the model parameters used in the
+analysis. The output model file has the same format as the optional input
+model file (see [Model file format](#model-file-format)).
+
+The output **VCF** file (.anc.vcf.gz) contains the phased input genotypes and
+the estimated local ancestry for the target samples. The most probable ancestry
+at each marker for a target sample's first and second haplotype are reported
+in the **AN1** and **AN2** FORMAT subfields.
+If [**probs=true**](#optional-parameters), the posterior
+ancestry probabilities at each marker for the target sample's first and
+second haplotypes are reported in the **ANP1** and **ANP2** FORMAT subfields.
+The integer that denotes each ancestry is listed in the
+"##ANCESTRY=<...>" meta-information line.
+
+[Contents](#contents)
+
+## Model file format
+
+A [**model**](#output-files) file contains model parameters.
+The model file can contain comment lines, blank lines, and data lines.
+A comment line is a line whose first non-white-space character is the 
+'#' character. A blank line contains only white-space characters.
+All other lines are data lines. Data lines contain white-space delimited 
+fields that specify the model parameters.
+
+If there are *A* ancestries and *P* reference panels, the model file will
+contains (2*A* + 5) data lines.
+
+* The first data line is the list of *A* ancestry names.  The first ancestry
+in the list has index 1.
+
+* The second data line is the list of the *P* reference panel names. The
+first reference panel in the list has index 1.
+
+* The third data line is the number of generations since admixture.
+
+* The fourth data line is a vector of length *A* whose *i*-th element
+is the proportion of target genotypes with ancestry *i*.
+
+* The next *A* data lines contain the first *A x P* matrix. The *(i,j)*-th
+element of the matrix is the probability that a model state haplotype is in
+reference panel *j* when the model state ancestry is *i*.
+
+* The next *A* data lines contain the second *A x P* matrix.  The *(i,j)*-th
+element of the matrix is the probability that a model state haplotype and the
+target haplotype carry different alleles when the model state haplotype is in
+reference panel *j* and the model state ancestry is *i*.
+
+* The final data line is a vector of length *A* whose
+*i*-th element is the the rate of the exponential identity-by-descent segment
+cM-length distribution when the most recent common ancestor is pre-admixture
+and has ancestry *i*.
+
+It is not normally necessary to use a model file
+because **flare** will automatically estimate model parameters by default
+(see the [**em**](#optional-parameters) parameter). If you want
+to specify the model parameters, the easiest way to ensure that the model file
+is in the correct format is to run **flare** without the
+[**model**](#optional-parameters) parameter, and then modify the values in the
+output model file.
+
+[Contents](#contents)
+
+## The model and em parameters
+**flare** is designed for genome-wide analysis.  If an
+input VCF file contains multiple chromosomes, **flare** will estimate model
+parameters using data from the first chromosome and use these model parameters
+for all subsequent chromosomes in the VCF file.
+
+If you analyze each chromosome separately, you can use the same
+model parameters for all chromosomes by analyzing one chromosome, and then
+analyze all remaining chromosomes with
+[**em=false**](#optional-parameters) and the
+[**model**](#optional-parameters) parameter set equal to the output
+[**.model**](#output-files) file from the first chromosome's analysis.
+
+If there are not enough data to accurately estimate model parameters, you can
+use the [**model**](#optional-parameters) and [**em=false**](#optional-parameters)
+parameters to specify the model parameters used in the analysis.
+
+If you are analyzing an extremely large number of admixed target individuals
+and need to reduce memory use, you can partition the admixed target samples
+into subsets and analyze each subset of target samples separately (see the
+[**excludesamples**](#optional-parameters) parameter).  The inferred
+ancestry for a partitioned and a non-partitioned analysis will be the same if
+you specify [**em=false**](#optional-parameters) and use the same
+[**model**](#optional-parameters), [**seed**](#optional-parameters), and
+[**nthreads**](#optional-parameters) parameters for all analyses.
+
+[Contents](#contents)
+
+## License
+The **flare** program is licensed under the Apache License, Version 2.0 (the License).
+You may obtain a copy of the License from http://www.apache.org/licenses/LICENSE-2.0
+
+[Contents](#contents)
+
+## Citation
+
+If you use **flare** in a published analysis, please report the program
+version printed in the **log** file and cite the article describing
+the **flare** method:
+
+> S R Browning, R K Waples, B L Browning. Fast, accurate local ancestry
+estimation with FLARE. In Preparation.
+
+<!--
+The American Journal of Human Genetics Vol(issue):0-10.
+doi: https://doi.org/10.1016/j.ajhg.2022.XX.YYY
+-->
+
+[Sharon Browning](https://sites.uw.edu/sguy/) developed the **flare** method.  
+[Brian Browning](https://faculty.washington.edu/browning) developed the **flare** software.
+
+[Contents](#contents)
