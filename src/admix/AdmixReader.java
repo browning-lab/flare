@@ -17,10 +17,13 @@
  */
 package admix;
 
+import blbutil.Const;
 import blbutil.FileIt;
 import blbutil.Filter;
+import blbutil.FilterUtils;
 import blbutil.InputIt;
 import blbutil.SampleFileIt;
+import blbutil.Utilities;
 import bref.SeqCoder3;
 import ints.IndexArray;
 import ints.WrappedIntArray;
@@ -28,6 +31,7 @@ import java.io.Closeable;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import vcf.FilterUtil;
@@ -88,10 +92,16 @@ public final class AdmixReader implements Closeable {
     }
 
     private AdmixReader(AdmixPar par) {
-        Filter<String> sampleFilter = FilterUtil.sampleFilter(par.excludesamples());
+        Filter<String> refSampFilt = FilterUtils.includeFilter(
+                AdmixUtils.readMap(par.ref_panel()).keySet()
+        );
+        boolean includeFilter = par.gt_samples()!=null
+                && par.gt_samples().startsWith("^")==false;
+        Filter<String> gtSampFilt = FilterUtil.sampleFilter(par.gtSamplesFile(),
+                includeFilter);
         Filter<Marker> markerFilter = FilterUtil.markerFilter(par.excludemarkers());
-        this.targIt = refIt(par.gt(), sampleFilter, markerFilter);
-        this.refIt = refIt(par.ref(), sampleFilter, markerFilter);
+        this.targIt = refIt(par.gt(), gtSampFilt, markerFilter);
+        this.refIt = refIt(par.ref(), refSampFilt, markerFilter);
         this.targSamples = targIt.samples();
         this.refSamples = refIt.samples();
         this.targRefSamples = targRefSamples(refSamples, targSamples);
@@ -124,9 +134,24 @@ public final class AdmixReader implements Closeable {
             idIndex[j] = refSamples.idIndex(targIndex);
             isDiploid[j] = refSamples.isDiploid(targIndex);
         }
+        checkForDuplicates(refSamples, targSamples);
         return new Samples(idIndex, isDiploid);
     }
 
+    private static void checkForDuplicates(Samples refSamples, 
+            Samples targSamples) {
+        HashSet<String> targIds = new HashSet<>(Arrays.asList(targSamples.ids()));
+        String[] refIds = refSamples.ids();
+        for (int j=0; j<refIds.length; ++j) {
+            if (targIds.contains(refIds[j])) {
+                String err = "A sample cannot be both a reference sample and a study sample";
+                String info = Const.nl + "Error      :  " + err
+                        + Const.nl     + "Sample     :  " + refIds[j];
+                Utilities.exit(new Throwable(err), info);
+            }
+        }
+    }
+        
     private int maxSeqCodingMajorCnt(Samples samples) {
         int nHaps = samples.size() << 1;
         return (int) Math.floor(nHaps*SeqCoder3.COMPRESS_FREQ_THRESHOLD);

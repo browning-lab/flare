@@ -1,11 +1,11 @@
 # flare
 
 The **flare** program uses a set of reference haplotypes
-to infer the ancestry at each genetic marker in a set of admixed target
+to infer the ancestry of each allele in a set of admixed target
 haplotypes. The **flare** program is fast, accurate, and memory-efficient.
 
-Last updated: July 23, 2022  
-Current version: 0.1.0
+Last updated: August 12, 2022  
+Current version: 0.2.0
 
 ## Contents
 
@@ -75,32 +75,35 @@ fill in the missing genotypes using the
 [Beagle](https://faculty.washington.edu/browning/beagle/beagle.html) program.
 Any input file with a name ending in ".gz" is assumed to be gzip-compressed.
 
-* **ref=[file]** where **[file]** is the reference VCF file
-which containing the genotype data for each reference panel.
-Individuals who are in the same reference panel should be from the same
-source population. A reference panel should not normally contain admixed samples.
+* **ref=[file]** where **[file]** is the reference VCF file that contains
+genotype data for each reference sample. Flare will ignore samples in the
+reference VCF file that are not present in the reference panel file 
+(see the **ref-panel** parameter).
 
-* **ref-panel=[file]** where **[file]** is a white-space delimited file with
-two fields per line that gives the reference panel for each reference sample.
-Each reference panel should contain individuals from one ancestral population.
-The first field on a line is a sample identifier in the reference VCF file
-(see the **ref** parameter), and the second field is the name of the ancestral
-population.
+* **ref-panel=[file]** where **[file]** is a reference panel file with two 
+white-space-delimited fields per line. The first field is a sample identifier 
+in the reference VCF file (see the **ref** parameter), and the second field 
+is the name of the reference panel containing the reference sample. 
+Flare will ignore samples in the reference VCF file that are not present 
+in the reference panel file. A reference panel should contain individuals
+from the same source population. A reference panel should not normally 
+contain admixed samples.
 
-* **gt=[file]** where **[file]** is the target VCF
-file containing admixed target samples whose ancestry at each marker will
-be inferred.  All admixed target individuals should be sampled from the
-same population.
+* **gt=[file]** where **[file]** is the study VCF file containing genotype 
+data for admixed study samples whose ancestry is to be inferred.  
+The **gt-samples** parameter can be used to restrict the analysis to 
+a subset of samples in the study VCF file. All admixed study samples in an 
+analysis should be from the same population.
 
 * **map=[file]** where **[file]** is a
-[PLINK format genetic map](http://zzz.bwh.harvard.edu/plink/data.shtml#map)
-with cM units. Positions of markers that are between genetic map positions are 
+[PLINK format genetic map](https://zzz.bwh.harvard.edu/plink/data.shtml#map)
+with cM units. Positions of markers that are between genetic map positions are
 estimated using linear interpolation. The chromosome identifiers
-in the genetic map and the input VCF files must match. HapMap genetic maps 
+in the genetic map and the input VCF files must match. HapMap genetic maps
 in cM units are available for
-[GRCh36](http://bochet.gcc.biostat.washington.edu/beagle/genetic_maps/),
-[GRCh37](http://bochet.gcc.biostat.washington.edu/beagle/genetic_maps/), and
-[GRCh38](http://bochet.gcc.biostat.washington.edu/beagle/genetic_maps/).
+[GRCh36](https://bochet.gcc.biostat.washington.edu/beagle/genetic_maps/),
+[GRCh37](https://bochet.gcc.biostat.washington.edu/beagle/genetic_maps/), and
+[GRCh38](https://bochet.gcc.biostat.washington.edu/beagle/genetic_maps/).
 
 * **out=[string]** where **[string]** is the output filename prefix.
 
@@ -157,6 +160,14 @@ file.
 * **excludesamples=[file]** where [file] is a text file containing samples
 (one sample identifier per line) that are to be excluded from the analysis.
 
+* **gt-samples=[file]** (or **gt-samples=^[file]**) where **[file]** 
+is a text file containing one sample identifier per line.
+Only admixed study samples that are present in **[file]** (or absent from 
+**[file]** if **[file]** is preceeded by **^**) will be analyzed. If the 
+**gt-samples** parameter is omitted, all admixed study samples will be included 
+in the analysis. The **gt-samples** parameter filters the study samples, 
+and the **ref-panel** parameter filters the reference samples.
+
 * **excludemarkers=[file]** where [file] is a text file containing markers
 (one marker identifier per line) that are to be excluded from the analysis.
 A marker identifier can be an identifier from the VCF record ID field, or it
@@ -191,9 +202,9 @@ The integer that denotes each ancestry is listed in the
 
 A [**model**](#output-files) file contains model parameters.
 The model file can contain comment lines, blank lines, and data lines.
-A comment line is a line whose first non-white-space character is the 
+A comment line is a line whose first non-white-space character is the
 '#' character. A blank line contains only white-space characters.
-All other lines are data lines. Data lines contain white-space delimited 
+All other lines are data lines. Data lines contain white-space delimited
 fields that specify the model parameters.
 
 If there are *A* ancestries and *P* reference panels, the model file will
@@ -264,7 +275,7 @@ you specify [**em=false**](#optional-parameters) and use the same
 
 ## License
 The **flare** program is licensed under the Apache License, Version 2.0 (the License).
-You may obtain a copy of the License from http://www.apache.org/licenses/LICENSE-2.0
+You may obtain a copy of the License from https://www.apache.org/licenses/LICENSE-2.0
 
 [Contents](#contents)
 
@@ -282,7 +293,7 @@ The American Journal of Human Genetics Vol(issue):0-10.
 doi: https://doi.org/10.1016/j.ajhg.2022.XX.YYY
 -->
 
-[Sharon Browning](https://sites.uw.edu/sguy/) developed the **flare** method.  
+[Sharon Browning](https://sites.uw.edu/sguy/) developed the **flare** method.
 [Brian Browning](https://faculty.washington.edu/browning) developed the **flare** software.
 
 [Contents](#contents)

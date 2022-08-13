@@ -92,6 +92,42 @@ public final class FilterUtil {
     }
 
     /**
+     * Returns a string filter determined by the specified parameters.
+     * The returned filter will accept all strings if
+     * {@code (sampleFile == null)}.  Otherwise, the returned filter will
+     * accept only strings found in {@code sampleFile} if
+     * {@code (includeFilter == true)} and will reject only strings found in
+     * {@code sampleFile} if {@code (includeFilter == false)}.  Each line in
+     * {@code sampleFile} can contain at most one white-space delimited field.
+
+     * @param sampleFile a file containing one string per line
+     * @param includeFilter {@code true} if the filter should accept string
+     * identifiers found in {@code sampleFile} and {@code} false if the filter
+     * should reject string identifiers found in {@code sampleFile}.
+     *
+     * @return a string filter
+     *
+     * @throws IllegalArgumentException if the specified file does not exist
+     * @throws IllegalArgumentException if the specified file is a directory
+     * @throws IllegalArgumentException if any line of the specified
+     * file contains two non-white-space characters separated by one or
+     * more white-space characters
+     */
+    public static Filter<String> sampleFilter(File sampleFile,
+            boolean includeFilter) {
+        if (sampleFile==null) {
+            return Filter.acceptAllFilter();
+        }
+        Set<String> idSet = Utilities.idSet(sampleFile);
+        if (includeFilter) {
+           return Filter.includeFilter(idSet);
+        }
+        else {
+           return Filter.excludeFilter(idSet);
+        }
+    }
+
+    /**
      * Returns {@code true} if the specified marker has an identifier
      * is in the specified set, or if ("marker.chrom()" + ":" + "marker.pos()")
      * is in the specified set, and returns {@code false} otherwise.

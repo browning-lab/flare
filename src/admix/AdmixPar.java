@@ -51,7 +51,8 @@ public final class AdmixPar {
     private final boolean em;
     private final int nthreads;
     private final long seed;
-    private final File excludesamples;
+    private final String gt_samples;
+    private final File gtSamplesFile;
     private final File excludemarkers;
 
     // Undocumented parameters
@@ -130,8 +131,8 @@ public final class AdmixPar {
         em = Validate.booleanArg("em", argsMap, false, DEF_EM);
         nthreads = Validate.intArg("nthreads", argsMap, false, DEF_THREADS, 1, IMAX);
         seed = Validate.longArg("seed", argsMap, false, DEF_SEED, LMIN, LMAX);
-        excludesamples = Validate.getFile(Validate.stringArg("excludesamples",
-                argsMap, false, null, null));
+        gt_samples = Validate.stringArg("gt-samples", argsMap, false, null, null);
+        gtSamplesFile = AdmixPar.gtSamplesFile(gt_samples);
         excludemarkers = Validate.getFile(
                 Validate.stringArg("excludemarkers", argsMap, false, null, null));
 
@@ -151,16 +152,27 @@ public final class AdmixPar {
         Validate.confirmEmptyMap(argsMap);
     }
 
+    private static File gtSamplesFile(String gtSamples) {
+        if (gtSamples==null) {
+            return null;
+        }
+        else if (gtSamples.startsWith("^")) {
+            return Validate.getFile(gtSamples.substring(1));
+        } else {
+            return Validate.getFile(gtSamples);
+        }
+    }
+
     /**
      * Prints an error message and terminates the Java virtual machine if
      * the specified file is an input file.
      * @param filename a filename
      * @throws NullPointerException if {@code filename == null}
      */
-    public void verifyNotAnInputFile(String filename) {
+    void verifyNotAnInputFile(String filename) {
         File file = new File(filename);
         if (file.equals(gt) || file.equals(ref) || file.equals(map)
-                || file.equals(excludesamples) || file.equals(excludemarkers)
+                || file.equals(gtSamplesFile) || file.equals(excludemarkers)
                 || file.equals(ref_panel) || file.equals(anc_panel)) {
             String err = "An output file has the same name as an input file";
             String info = Const.nl + "Error      :  " + err
@@ -317,14 +329,25 @@ public final class AdmixPar {
     }
 
     /**
-     * Returns the excludesamples file or {@code null}
-     * if no excludesamples parameter was specified.
+     * Returns the gt-samples parameter or {@code null}
+     * if no gt-samples parameter was specified.
      *
-     * @return the exclude-samples file or {@code null}
-     * if no exclude-samples parameter was specified
+     * @return the gt-samples parameter or {@code null}
+     * if no gt-samples parameter was specified.
      */
-    public File excludesamples() {
-        return excludesamples;
+    public String gt_samples() {
+        return gt_samples;
+    }
+
+    /**
+     * Returns the file specified with the gt-samples parameter or
+     * {@code null} if no gt-samples parameter was specified.
+     *
+     * @return the file specified with the gt-samples parameter or
+     * {@code null} if no gt-samples parameter was specified.
+     */
+    public File gtSamplesFile() {
+        return gtSamplesFile;
     }
 
     /**

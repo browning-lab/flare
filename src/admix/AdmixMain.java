@@ -34,8 +34,8 @@ import java.util.Optional;
 public class AdmixMain {
 
     static final String EXECUTABLE = "flare.jar";
-    static final String REVISION = "flare.23Jul22.e02.jar";
-    static final String PROGRAM = EXECUTABLE + "  [ version 0.1.0, 23Jul22.e02 ]";
+    static final String REVISION = "flare.__REV__.jar";
+    static final String PROGRAM = EXECUTABLE + "  [ version 0.2.0, __REV__ ]";
     static final String COPYRIGHT = "Copyright (C) 2022 Brian L. Browning";
     static final String COMMAND = "java -jar " + EXECUTABLE;
 
@@ -275,10 +275,10 @@ public class AdmixMain {
         sb.append(Const.nl);
         sb.append("  seed              :  ");
         sb.append(par.seed());
-        if (par.excludesamples()!=null) {
+        if (par.gt_samples()!=null) {
             sb.append(Const.nl);
-            sb.append("  excludesamples    :  ");
-            sb.append(par.excludesamples());
+            sb.append("  gt-samples        :  ");
+            sb.append(par.gt_samples());
         }
         if (par.excludemarkers()!=null) {
             sb.append(Const.nl);
