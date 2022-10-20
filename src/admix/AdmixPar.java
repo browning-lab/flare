@@ -213,6 +213,7 @@ public final class AdmixPar {
 
                 + "Optional Parameters:" + nl
 //                + "  anc-panel=<file with ancestry to panels map>         (optional)" + nl
+                + "  array=<genotypes are from a SNP array: true/false>   (default: " + DEF_ARRAY + ")" + nl
                 + "  min-maf=<minimum MAF in reference VCF file>          (default: " + DEF_MIN_MAF + ")" + nl
                 + "  min-mac=<minimum MAC in reference VCF file>          (default: " + DEF_MIN_MAC + ")" + nl
                 + "  probs=<report ancestry probs: true/false>            (default: " + DEF_PROBS + nl
