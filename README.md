@@ -4,8 +4,8 @@ The **flare** program uses a set of reference haplotypes
 to infer the ancestry of each allele in a set of admixed target
 haplotypes. The **flare** program is fast, accurate, and memory-efficient.
 
-Last updated: August 12, 2022  
-Current version: 0.2.0
+Last updated: October 13, 2022  
+Current version: 0.3.0
 
 ## Contents
 
@@ -77,22 +77,22 @@ Any input file with a name ending in ".gz" is assumed to be gzip-compressed.
 
 * **ref=[file]** where **[file]** is the reference VCF file that contains
 genotype data for each reference sample. Flare will ignore samples in the
-reference VCF file that are not present in the reference panel file 
+reference VCF file that are not present in the reference panel file
 (see the **ref-panel** parameter).
 
-* **ref-panel=[file]** where **[file]** is a reference panel file with two 
-white-space-delimited fields per line. The first field is a sample identifier 
-in the reference VCF file (see the **ref** parameter), and the second field 
-is the name of the reference panel containing the reference sample. 
-Flare will ignore samples in the reference VCF file that are not present 
+* **ref-panel=[file]** where **[file]** is a reference panel file with two
+white-space-delimited fields per line. The first field is a sample identifier
+in the reference VCF file (see the **ref** parameter), and the second field
+is the name of the reference panel containing the reference sample.
+Flare will ignore samples in the reference VCF file that are not present
 in the reference panel file. A reference panel should contain individuals
-from the same source population. A reference panel should not normally 
+from the same source population. A reference panel should not normally
 contain admixed samples.
 
-* **gt=[file]** where **[file]** is the study VCF file containing genotype 
-data for admixed study samples whose ancestry is to be inferred.  
-The **gt-samples** parameter can be used to restrict the analysis to 
-a subset of samples in the study VCF file. All admixed study samples in an 
+* **gt=[file]** where **[file]** is the study VCF file containing genotype
+data for admixed study samples whose ancestry is to be inferred.
+The **gt-samples** parameter can be used to restrict the analysis to
+a subset of samples in the study VCF file. All admixed study samples in an
 analysis should be from the same population.
 
 * **map=[file]** where **[file]** is a
@@ -111,11 +111,21 @@ in cM units are available for
 
 ### Optional parameters
 
+* **array=[true/false]** specifies whether the input data are from a SNP array.
+The **min-mac** parameter is ignored if **array=true**.  By default,
+flare assumes the input data are sequence data (**default: array=false**). 
+
 * **min-maf=[number < 0.5]** specifies the minimum minor allele frequency in
 the reference VCF file in order for a marker to be included in the
-analysis (**default: min-maf=0.005**).
-For multi-allelic markers, the minor allele frequency is the second-largest
-allele frequency.
+analysis (**default: min-maf=0.005**). For multi-allelic markers,
+the minor allele is the allele with the second-largest frequency.
+
+* **min-mac=[number ≥ 0]** specifies the minimum minor allele count in
+the reference VCF file in order for a marker to be included in the
+analysis (**default: min-mac=50**).  The **min-mac** parameter is ignored 
+if **array=true**. If **array=false**, the **min-mac** parameter must be less
+than one-half the number of reference haplotypes.  For multi-allelic markers,
+the minor allele is the allele with the second-largest frequency.
 
 * **probs=[true/false]** specifies whether posterior ancestry probabilities
 will be reported (**default: probs=false**). The ancestry
@@ -157,15 +167,12 @@ file.
 (**default: seed=-99999**). Repeating an analysis with the same **seed** and
 **nthreads** parameters will produce the same local ancestry estimates.
 
-* **excludesamples=[file]** where [file] is a text file containing samples
-(one sample identifier per line) that are to be excluded from the analysis.
-
-* **gt-samples=[file]** (or **gt-samples=^[file]**) where **[file]** 
+* **gt-samples=[file]** (or **gt-samples=^[file]**) where **[file]**
 is a text file containing one sample identifier per line.
-Only admixed study samples that are present in **[file]** (or absent from 
-**[file]** if **[file]** is preceeded by **^**) will be analyzed. If the 
-**gt-samples** parameter is omitted, all admixed study samples will be included 
-in the analysis. The **gt-samples** parameter filters the study samples, 
+Only admixed study samples that are present in **[file]** (or absent from
+**[file]** if **[file]** is preceeded by **^**) will be analyzed. If the
+**gt-samples** parameter is omitted, all admixed study samples will be included
+in the analysis. The **gt-samples** parameter filters the study samples,
 and the **ref-panel** parameter filters the reference samples.
 
 * **excludemarkers=[file]** where [file] is a text file containing markers
@@ -286,14 +293,15 @@ version printed in the **log** file and cite the article describing
 the **flare** method:
 
 > S R Browning, R K Waples, B L Browning. Fast, accurate local ancestry
-estimation with FLARE. In Preparation.
+estimation with FLARE. bioRxiv 2022.08.02.502540;
+doi: https://doi.org/10.1101/2022.08.02.502540
 
 <!--
 The American Journal of Human Genetics Vol(issue):0-10.
 doi: https://doi.org/10.1016/j.ajhg.2022.XX.YYY
 -->
 
-[Sharon Browning](https://sites.uw.edu/sguy/) developed the **flare** method.
+[Sharon Browning](https://sites.uw.edu/sguy/) developed the **flare** method.  
 [Brian Browning](https://faculty.washington.edu/browning) developed the **flare** software.
 
 [Contents](#contents)

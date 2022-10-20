@@ -68,8 +68,8 @@ public final class ParamEstimator {
             double[] prevMu = new double[initParams.fixedParams().nAnc()];
             for (int j=0, n=par.em_its(); j<=n && muHasConverged==false; ++j) {
                 // (n+1) iterations because j=0 calculates init parameter score
-                WrappedIntArray hapListIndices = targHapListIndices(ibsHaps.chromData(), rand);
-                ParamEstimateData ape = estimateMuT(ibsHaps, params, hapListIndices);
+                WrappedIntArray selectedTargHaps = selectedTargHaps(ibsHaps.chromData(), rand);
+                ParamEstimateData ape = estimateMuT(ibsHaps, params, selectedTargHaps);
                 if (fixedParams.par().debug()) {
                     writeDiagnosticOutput(j, params);
                 }
@@ -111,7 +111,7 @@ public final class ParamEstimator {
                 for (int i=0; i<nAnc; ++i) {
                     AncSpecificParams initParams = new AncSpecificParams(fixedParams, i);
                     estimatedParams[i] = estimateRhoP(ibsHaps, initParams,
-                            selectedHaps.hapListIndices(i));
+                            selectedHaps.panelToSelectedHapsIndices(i));
                 }
                 return new PartiallyUpdatedParams(estimatedParams, defaultParams);
             }
@@ -135,7 +135,7 @@ public final class ParamEstimator {
     }
 
     private static ParamEstimateData estimateRhoP(IbsHaps ibsHaps,
-            ParamsInterface oldParams, WrappedIntArray hapListIndices) {
+            ParamsInterface oldParams, WrappedIntArray selectedHapIndices) {
         ParamEstimateData ape = new ParamEstimateData(oldParams);
         AdmixData data = new AdmixData(ibsHaps.chromData(), oldParams);
         AtomicInteger index = new AtomicInteger(0);
@@ -144,11 +144,11 @@ public final class ParamEstimator {
         for (int j=0; j<nThreads; ++j) {
             es.submit(() -> {
                 try {
-                    int nHaps = hapListIndices.size();
+                    int nHaps = selectedHapIndices.size();
                     AdmixHmm hmm = new AdmixHmm(data, ibsHaps);
                     int i = index.getAndIncrement();
                     while (i<nHaps) {
-                        hmm.runFwdBwdRhoP(hapListIndices.get(i));
+                        hmm.runFwdBwdRhoP(selectedHapIndices.get(i));
                         i = index.getAndIncrement();
                     }
                     hmm.updateRhoP(ape);
@@ -163,7 +163,7 @@ public final class ParamEstimator {
     }
 
     private static ParamEstimateData estimateMuT(IbsHaps ibsHaps,
-            ParamsInterface oldParams, WrappedIntArray hapListIndices) {
+            ParamsInterface oldParams, WrappedIntArray selectedTargHaps) {
         ParamEstimateData ape = new ParamEstimateData(oldParams);
         AdmixData data = new AdmixData(ibsHaps.chromData(), oldParams);
         AtomicInteger index = new AtomicInteger(0);
@@ -172,11 +172,11 @@ public final class ParamEstimator {
         for (int j=0; j<nThreads; ++j) {
             es.submit(() -> {
                 try {
-                    int nHaps = hapListIndices.size();
+                    int nHaps = selectedTargHaps.size();
                     AdmixHmm hmm = new AdmixHmm(data, ibsHaps);
                     int i = index.getAndIncrement();
                     while (i<nHaps) {
-                        hmm.runFwdBwdMuT(hapListIndices.get(i));
+                        hmm.runFwdBwdMuT(selectedTargHaps.get(i));
                         i = index.getAndIncrement();
                     }
                     hmm.updateMuT(ape);
@@ -190,7 +190,7 @@ public final class ParamEstimator {
         return ape;
     }
 
-    private static WrappedIntArray targHapListIndices(AdmixChromData chromData,
+    private static WrappedIntArray selectedTargHaps(AdmixChromData chromData,
             Random rand) {
         int nTargHaps = chromData.nTargHaps();
         int maxHaps = chromData.par().em_haps();

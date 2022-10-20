@@ -79,7 +79,7 @@ public final class AdmixStates {
         this.chromData = data.chromData();
         this.refHapToPanel = data.params().fixedParams().refHapToPanel();
         this.ibsHaps = ibsHaps;
-        this.hapList = ibsHaps.selectedHaps().hapList();
+        this.hapList = ibsHaps.selectedHaps().selectedHaps();
         this.steps = ibsHaps.steps();
         this.nSteps = steps.size();
         this.targRefGT = chromData.targRefGT();

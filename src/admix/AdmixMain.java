@@ -34,8 +34,8 @@ import java.util.Optional;
 public class AdmixMain {
 
     static final String EXECUTABLE = "flare.jar";
-    static final String REVISION = "flare.12Aug22.faa.jar";
-    static final String PROGRAM = EXECUTABLE + "  [ version 0.2.0, 12Aug22.faa ]";
+    static final String REVISION = "flare.__REV__.jar";
+    static final String PROGRAM = EXECUTABLE + "  [ version 0.3.0, __REV__ ]";
     static final String COPYRIGHT = "Copyright (C) 2022 Brian L. Browning";
     static final String COMMAND = "java -jar " + EXECUTABLE;
 
@@ -75,7 +75,9 @@ public class AdmixMain {
     }
 
     private static void printWarnings(AdmixPar par, PrintWriter log) {
-        boolean printWarnings = par.anc_panel()!=null || par.gen()!=AdmixPar.DEF_GEN;
+        boolean printWarnings = par.anc_panel()!=null
+                || par.gen()!=AdmixPar.DEF_GEN
+                || par.array()==true;
         if (printWarnings) {
              Utilities.duoPrintln(log, "");
         }
@@ -84,6 +86,9 @@ public class AdmixMain {
         }
         if (par.gen()!=AdmixPar.DEF_GEN) {
             printGenWarning(log);
+        }
+        if (par.array()) {
+            printMinMacNote(log);
         }
         if (printWarnings) {
             Utilities.duoPrintln(log, "");
@@ -100,6 +105,11 @@ public class AdmixMain {
         Utilities.duoPrintln(log, msg);
     }
 
+    private static void printMinMacNote(PrintWriter log) {
+        String msg = "Note: the minor allele count filter is not applied when 'array=true'";
+        Utilities.duoPrintln(log, msg);
+    }
+
     private static void runAnalysis(AdmixPar par, PrintWriter log) {
         try (AdmixChromData.It chromIt = new AdmixChromData.It(par)) {
             FixedParams fixedParams = FixedParams.create(par,
@@ -113,18 +123,18 @@ public class AdmixMain {
                 AdmixChromData chromData = optChromData.get();
                 boolean includeRefHaps = oneAncPerPanel(fixedParams);
                 SelectedHaps selectedHaps = new SelectedHaps(fixedParams, includeRefHaps);
-                IbsHaps ibsSegments = new IbsHaps(chromData, selectedHaps);
+                IbsHaps ibsHaps = new IbsHaps(chromData, selectedHaps);
 
-                ParamsInterface params = ParamEstimator.getParams(fixedParams, ibsSegments, log);
+                ParamsInterface params = ParamEstimator.getParams(fixedParams, ibsHaps, log);
                 writeModelFile(params);
 
-                AncEstimator.estAncestry(ibsSegments, params, admixWriter);
+                AncEstimator.estAncestry(ibsHaps, params, admixWriter);
                 optChromData = chromIt.nextChrom();
                 while (optChromData.isPresent()) {
                     chromData = optChromData.get();
                     selectedHaps = selectedHaps.removeRefHaps();
-                    ibsSegments = new IbsHaps(chromData, selectedHaps);
-                    AncEstimator.estAncestry(ibsSegments, params, admixWriter);
+                    ibsHaps = new IbsHaps(chromData, selectedHaps);
+                    AncEstimator.estAncestry(ibsHaps, params, admixWriter);
                     optChromData = chromIt.nextChrom();
                 }
             }
@@ -252,9 +262,17 @@ public class AdmixMain {
             sb.append(par.anc_panel());
         }
         sb.append(Const.nl);
+        sb.append("  array             :  ");
+        sb.append(par.array());
+        sb.append(Const.nl);
         sb.append("  min-maf           :  ");
         sb.append(par.min_maf());
         sb.append(Const.nl);
+        if (par.array()==false) {
+            sb.append("  min-mac           :  ");
+            sb.append(par.min_mac());
+            sb.append(Const.nl);
+        }
         sb.append("  probs             :  ");
         sb.append(par.probs());
         sb.append(Const.nl);

@@ -44,7 +44,9 @@ public final class AdmixPar {
 
     // Optional parameters
     private final File anc_panel;
+    private final boolean array;
     private final float min_maf;
+    private final int min_mac;
     private final boolean probs;
     private final float gen;
     private final File model;
@@ -69,7 +71,9 @@ public final class AdmixPar {
     private final float min_mu;
     private final boolean debug;
 
+    private static final boolean DEF_ARRAY = false;
     private static final float DEF_MIN_MAF = 0.005f;
+    private static final int DEF_MIN_MAC = 50;
     private static final boolean DEF_PROBS = false;
     static final float DEF_GEN = 10f;
     private static final boolean DEF_EM = true;
@@ -121,9 +125,11 @@ public final class AdmixPar {
 
         // Optional parameters
         anc_panel = null; // anc_panel is not currently a valid parameter
-//        anc_panel = Validate.getFile(Validate.stringArg("anc-panel", argsMap, false,
-//                null, null));
+//      anc_panel = Validate.getFile(Validate.stringArg("anc-panel", argsMap, false,
+//              null, null));
+        array = Validate.booleanArg("array", argsMap, false, DEF_ARRAY);
         min_maf = Validate.floatArg("min-maf", argsMap, false, DEF_MIN_MAF, -FMAX, Math.nextDown(0.5f));
+        min_mac = Validate.intArg("min-mac", argsMap, false, DEF_MIN_MAC, 0, IMAX);
         probs = Validate.booleanArg("probs", argsMap, false, DEF_PROBS);
         gen = Validate.floatArg("gen", argsMap, false, DEF_GEN, 1, IMAX);
         model = Validate.getFile(Validate.stringArg("model", argsMap, false,
@@ -208,13 +214,14 @@ public final class AdmixPar {
                 + "Optional Parameters:" + nl
 //                + "  anc-panel=<file with ancestry to panels map>         (optional)" + nl
                 + "  min-maf=<minimum MAF in reference VCF file>          (default: " + DEF_MIN_MAF + ")" + nl
+                + "  min-mac=<minimum MAC in reference VCF file>          (default: " + DEF_MIN_MAC + ")" + nl
                 + "  probs=<report ancestry probs: true/false>            (default: " + DEF_PROBS + nl
                 + "  gen=<number of generations since admixture>          (default: " + DEF_GEN + ")" + nl
                 + "  model=<file with model parameters>                   (optional)" + nl
                 + "  em=<estimate model parameters using EM: true/false>  (default: " + DEF_EM + ")" + nl
                 + "  nthreads=<number of computational threads>           (default: all CPU cores)" + nl
                 + "  seed=<seed for random number generations>            (default: " + DEF_SEED + ")" + nl
-                + "  excludesamples=<file with samples to exclude>        (optional)" + nl
+                + "  gt-samples=<file with sample IDs to analyze>         (optional)" + nl
                 + "  excludemarkers=<file with markers to exclude>        (optional)" + nl;
     }
 
@@ -272,11 +279,27 @@ public final class AdmixPar {
     }
 
     /**
+     * Returns the array parameter.
+     * @return the array parameter
+     */
+    public boolean array() {
+        return array;
+    }
+
+    /**
      * Returns the min-maf parameter.
      * @return the min-maf parameter
      */
     public float min_maf() {
         return min_maf;
+    }
+
+    /**
+     * Returns the min-mac parameter.
+     * @return the min-mac parameter
+     */
+    public int min_mac() {
+        return min_mac;
     }
 
     /**

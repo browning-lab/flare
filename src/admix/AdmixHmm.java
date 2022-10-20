@@ -121,7 +121,7 @@ public class AdmixHmm {
      * @return the list of haplotypes with stored IBS segments
      */
     public WrappedIntArray hapList() {
-        return states.ibsHaps().selectedHaps().hapList();
+        return states.ibsHaps().selectedHaps().selectedHaps();
     }
 
     /**

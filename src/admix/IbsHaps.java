@@ -43,9 +43,6 @@ public final class IbsHaps {
     private final AdmixChromData chromData;
     private final Steps steps;
     private final int nIbsHaps;
-    private final int nFwdIbsHaps;
-    private final int nBwdIbsHaps;
-    private final int nTargHaps;
     private final SelectedHaps selectedHaps;
     private final WrappedIntArray[] ibsHaps; // [step][selected hap]
 
@@ -67,59 +64,54 @@ public final class IbsHaps {
         this.chromData = chromData;
         this.steps = codedSteps.steps();
         this.nIbsHaps = par.ibs_haps();
-        this.nFwdIbsHaps = par.ibs_haps()>>1;
-        this.nBwdIbsHaps = nIbsHaps - nFwdIbsHaps;
-        this.nTargHaps = chromData.nTargHaps();
         this.selectedHaps = selectedHaps;
-        final WrappedIntArray hapToHapListIndex
-                = hapToHapListIndex(selectedHaps, chromData.nHaps());
+        final WrappedIntArray hapToSelectedHapsIndex
+                = hapToSelectedHapsIndex(selectedHaps.selectedHaps(), chromData.nHaps());
         this.ibsHaps = IntStream.range(0, nBatches)
                 .parallel()
-                .mapToObj(batch -> ibsHaps(codedSteps, hapToHapListIndex,
-                        batch, batchSize))
+                .mapToObj(batch -> ibsHaps(chromData, selectedHaps, codedSteps,
+                        hapToSelectedHapsIndex, batch, batchSize))
                 .flatMap(a -> Arrays.stream(a))
                 .toArray(WrappedIntArray[]::new);
 
-        long t2 = System.nanoTime();
     }
 
-    private static WrappedIntArray hapToHapListIndex(
-            SelectedHaps selectedHaps, int nHaps) {
-        WrappedIntArray hapList = selectedHaps.hapList();
-        int[] hapToHapListIndex = IntStream.range(0, nHaps)
+    private static WrappedIntArray hapToSelectedHapsIndex(
+            WrappedIntArray selectedHaps, int nHaps) {
+        int[] hapToSelectedHapsIndex = IntStream.range(0, nHaps)
                 .parallel()
                 .map(j -> -1)
                 .toArray();
-        for (int j=0, n=hapList.size(); j<n; ++j) {
-            hapToHapListIndex[hapList.get(j)] = j;
+        for (int j=0, n=selectedHaps.size(); j<n; ++j) {
+            hapToSelectedHapsIndex[selectedHaps.get(j)] = j;
         }
-        return new WrappedIntArray(hapToHapListIndex);
+        return new WrappedIntArray(hapToSelectedHapsIndex);
     }
 
-    private WrappedIntArray[] ibsHaps(AdmixCodedSteps codedSteps,
-            WrappedIntArray hapToHapListIndex,
-            int batch, int batchSize) {
+    private static WrappedIntArray[] ibsHaps(AdmixChromData chromData,
+            SelectedHaps selectedHaps, AdmixCodedSteps codedSteps,
+            WrappedIntArray hapToSelectedHapsIndex, int batch, int batchSize) {
         AdmixPar par = chromData.par();
         int nSteps = codedSteps.steps().size();
         int start = batch*batchSize;
-        int end = Math.min(start + batchSize, steps.size());
+        int end = Math.min(start + batchSize, nSteps);
         int nOverlapSteps = (int) Math.rint(par.ibs_buffer() / par.ibs_step());
         int overlapStart = Math.max(0, start - nOverlapSteps);
         int overlapEnd = Math.min(end + nOverlapSteps, nSteps);
 
         PbwtDivUpdater pbwt = new PbwtDivUpdater(chromData.nHaps());
-        int nSelectedHaps = selectedHaps.hapList().size();
-        int[][] ibsHaps0 = new int[end-start][nSelectedHaps*nIbsHaps];
-        fwdIbsHaps(codedSteps, hapToHapListIndex, pbwt, ibsHaps0, overlapStart, start);
-        bwdIbsHaps(codedSteps, hapToHapListIndex, pbwt, ibsHaps0, end, overlapEnd);
+        int nSelectedHaps = selectedHaps.selectedHaps().size();
+        int[][] ibsHaps0 = new int[end-start][nSelectedHaps*par.ibs_haps()];
+        fwdIbsHaps(chromData, codedSteps, hapToSelectedHapsIndex, pbwt, ibsHaps0, overlapStart, start);
+        bwdIbsHaps(chromData, codedSteps, hapToSelectedHapsIndex, pbwt, ibsHaps0, end, overlapEnd);
         return Arrays.stream(ibsHaps0)
                 .map(ia -> new WrappedIntArray(ia))
                 .toArray(WrappedIntArray[]::new);
     }
 
-    private void fwdIbsHaps(AdmixCodedSteps codedSteps,
-            WrappedIntArray hapToHapListIndex, PbwtDivUpdater pbwt,
-            int[][] ibsHaps, int overlapStart, int start) {
+    private static void fwdIbsHaps(AdmixChromData chromData,
+            AdmixCodedSteps codedSteps, WrappedIntArray hapToSelectedHapsIndex,
+            PbwtDivUpdater pbwt, int[][] ibsHaps, int overlapStart, int start) {
         int nHaps = pbwt.nHaps();
         int[] a = IntStream.range(0, nHaps).toArray();
         int[] d = IntStream.range(0, nHaps+1).map(j -> overlapStart).toArray(); // last entry is sentinal
@@ -130,19 +122,23 @@ public final class IbsHaps {
         for (int j=0, step=start; j<ibsHaps.length; ++j, ++step) {
             IndexArray ia = codedSteps.get(step);
             pbwt.fwdUpdate(ia.intArray(), ia.valueSize(), step, a, d);
-            setfwdIbsHaps(step, hapToHapListIndex, a, d, ibsHaps[j]);
+            setfwdIbsHaps(chromData, step, hapToSelectedHapsIndex, a, d, ibsHaps[j]);
         }
     }
 
-    private void setfwdIbsHaps(int step, WrappedIntArray hapToHapListIndex,
+    private static void setfwdIbsHaps(AdmixChromData chromData, int step,
+            WrappedIntArray hapToSelectedHapsIndex,
             int[] a, int[] d, int[] ibsHaps) {
         assert d[0] == (step + 1);
+        int nIbsHaps = chromData.par().ibs_haps();
+        int nFwdIbsHaps = nIbsHaps >> 1;
+        int nTargHaps = chromData.nTargHaps();
         d[a.length] = step + 1;  // set sentinal
         for (int i=0; i<a.length; ++i) {
-            int hapListIndex = hapToHapListIndex.get(a[i]);
-            if (hapListIndex>=0) {
+            int selectedHapsIndex = hapToSelectedHapsIndex.get(a[i]);
+            if (selectedHapsIndex>=0) {
                 int index = 0;
-                int start = hapListIndex*nIbsHaps;
+                int start = selectedHapsIndex*nIbsHaps;
                 int u = i;          // inclusive start
                 int v = i + 1;      // exclusive end
                 int uNextMatchStart = d[u];
@@ -169,8 +165,8 @@ public final class IbsHaps {
         }
     }
 
-    private void bwdIbsHaps(AdmixCodedSteps codedSteps,
-            WrappedIntArray hapToHapListIndex, PbwtDivUpdater pbwt,
+    private static void bwdIbsHaps(AdmixChromData chromData, AdmixCodedSteps codedSteps,
+            WrappedIntArray hapToSelectedHapsIndex, PbwtDivUpdater pbwt,
             int[][] ibsHaps, int end, int overlapEnd) {
         int nHaps = pbwt.nHaps();
         int[] a = IntStream.range(0, nHaps).toArray();
@@ -182,19 +178,24 @@ public final class IbsHaps {
         for (int j=(ibsHaps.length-1), step=(end-1); j>=0; --j, --step) {
             IndexArray ia = codedSteps.get(step);
             pbwt.bwdUpdate(ia.intArray(), ia.valueSize(), step, a, d);
-            setBwdIbsHaps(step, hapToHapListIndex, a, d, ibsHaps[j]);
+            setBwdIbsHaps(chromData, step, hapToSelectedHapsIndex, a, d, ibsHaps[j]);
         }
     }
 
-    private void setBwdIbsHaps(int step, WrappedIntArray hapToHapListIndex,
+    private static void setBwdIbsHaps(AdmixChromData chromData,
+            int step, WrappedIntArray hapToSelectedHapsIndex,
             int[] a, int[] d, int[] ibsHaps) {
         d[0] = d[a.length] = step - 1;  // set sentinals
+        int nIbsHaps = chromData.par().ibs_haps();
+        int nFwdIbsHaps = nIbsHaps >> 1;
+        int nBwdIbsHaps = nIbsHaps - nFwdIbsHaps;
+        int nTargHaps = chromData.nTargHaps();
         // no need to save and restore old d[0], d[a.length] values
         for (int i=0; i<a.length; ++i) {
-            int hapListIndex = hapToHapListIndex.get(a[i]);
-            if (hapListIndex>=0) {
+            int selectedHapsIndex = hapToSelectedHapsIndex.get(a[i]);
+            if (selectedHapsIndex>=0) {
                 int index = 0;
-                int start = hapListIndex*nIbsHaps + nFwdIbsHaps;
+                int start = selectedHapsIndex*nIbsHaps + nFwdIbsHaps;
                 int u = i;          // inclusive start
                 int v = i + 1;      // exclusive end
                 int uNextMatchEnd = d[u];

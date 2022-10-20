@@ -105,7 +105,7 @@ public final class AdmixReader implements Closeable {
         this.targSamples = targIt.samples();
         this.refSamples = refIt.samples();
         this.targRefSamples = targRefSamples(refSamples, targSamples);
-        this.minMac = (int) Math.ceil(par.min_maf()*(refSamples.size()<<1));
+        this.minMac = minMac(par, refSamples);
 
         this.lowFreqBuffer = new ArrayList<>();
         this.allRecs = new ArrayList<>();
@@ -138,7 +138,7 @@ public final class AdmixReader implements Closeable {
         return new Samples(idIndex, isDiploid);
     }
 
-    private static void checkForDuplicates(Samples refSamples, 
+    private static void checkForDuplicates(Samples refSamples,
             Samples targSamples) {
         HashSet<String> targIds = new HashSet<>(Arrays.asList(targSamples.ids()));
         String[] refIds = refSamples.ids();
@@ -151,7 +151,20 @@ public final class AdmixReader implements Closeable {
             }
         }
     }
-        
+
+    private static int minMac(AdmixPar par, Samples refSamples) {
+        if (par.array()==false && (par.min_mac() >= refSamples.size())) {
+            String err = "The min-mac parameter must be less than the number of reference samples";
+            String info = Const.nl + "Error       :  " + err
+                    + Const.nl     + "min-mac     :  " + par.min_mac()
+                    + Const.nl     + "ref samples :  " + refSamples.size();
+            Utilities.exit(new Throwable(err), info);
+        }
+        int nRefHaps = refSamples.size()<<1;
+        int mafMinMac = (int) Math.ceil(par.min_maf()*nRefHaps);
+        return par.array()==true ? mafMinMac : Math.max(mafMinMac, par.min_mac());
+    }
+
     private int maxSeqCodingMajorCnt(Samples samples) {
         int nHaps = samples.size() << 1;
         return (int) Math.floor(nHaps*SeqCoder3.COMPRESS_FREQ_THRESHOLD);
