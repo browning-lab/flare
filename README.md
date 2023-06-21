@@ -272,7 +272,7 @@ parameters to specify the model parameters used in the analysis.
 If you are analyzing an extremely large number of admixed target individuals
 and need to reduce memory use, you can partition the admixed target samples
 into subsets and analyze each subset of target samples separately (see the
-[**excludesamples**](#optional-parameters) parameter).  The inferred
+[**gt-samples**](#optional-parameters) parameter).  The inferred
 ancestry for a partitioned and a non-partitioned analysis will be the same if
 you specify [**em=false**](#optional-parameters) and use the same
 [**model**](#optional-parameters), [**seed**](#optional-parameters), and
