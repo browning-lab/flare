@@ -1,5 +1,6 @@
 /*
  * Copyright 2021 Brian L. Browning
+ * Copyright 2023 Genomics plc
  *
  * This file is part of the flare program.
  *
@@ -205,7 +206,7 @@ public final class AdmixPar {
         return "Syntax: " + AdmixMain.COMMAND + " [arguments in format: parameter=value]" + nl
                 + nl
                 + "Required Parameters:" + nl
-                + "  ref=<VCF file with phased reference genotypes>       (required)" + nl
+                + "  ref=<VCF/BREF3 file with phased reference genotypes> (required)" + nl
                 + "  ref-panel=<file with reference sample to panel map>  (required)" + nl
                 + "  gt=<VCF file with phased genotypes to be analyzed>   (required)" + nl
                 + "  map=<PLINK map file with cM units>                   (required)" + nl
@@ -214,8 +215,8 @@ public final class AdmixPar {
                 + "Optional Parameters:" + nl
 //                + "  anc-panel=<file with ancestry to panels map>         (optional)" + nl
                 + "  array=<genotypes are from a SNP array: true/false>   (default: " + DEF_ARRAY + ")" + nl
-                + "  min-maf=<minimum MAF in reference VCF file>          (default: " + DEF_MIN_MAF + ")" + nl
-                + "  min-mac=<minimum MAC in reference VCF file>          (default: " + DEF_MIN_MAC + ")" + nl
+                + "  min-maf=<minimum MAF in reference file>              (default: " + DEF_MIN_MAF + ")" + nl
+                + "  min-mac=<minimum MAC in reference file>              (default: " + DEF_MIN_MAC + ")" + nl
                 + "  probs=<report ancestry probs: true/false>            (default: " + DEF_PROBS + nl
                 + "  gen=<number of generations since admixture>          (default: " + DEF_GEN + ")" + nl
                 + "  model=<file with model parameters>                   (optional)" + nl

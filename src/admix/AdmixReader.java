@@ -1,5 +1,6 @@
 /*
  * Copyright 2021 Brian L. Browning
+ * Copyright 2023 Genomics plc
  *
  * This file is part of the flare program.
  *
@@ -24,6 +25,7 @@ import blbutil.FilterUtils;
 import blbutil.InputIt;
 import blbutil.SampleFileIt;
 import blbutil.Utilities;
+import bref.Bref3It;
 import bref.SeqCoder3;
 import ints.IndexArray;
 import ints.WrappedIntArray;
@@ -34,6 +36,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+
 import vcf.FilterUtil;
 import vcf.GTRec;
 import vcf.IntArrayRefGTRec;
@@ -45,7 +49,7 @@ import vcf.Samples;
 
 /**
  * <p>Class {@code AdmixReader} reads and merges reference and target
- * VCF files with phased genotype data.</p>
+ * VCF/BREF3 files with phased genotype data.</p>
  *
  * <p>Instances of class {@code AdmixReader} are not thread-safe.</p>
  *
@@ -82,8 +86,8 @@ public final class AdmixReader implements Closeable {
         boolean success = reader.initRecs();
         if (success==false) {
             String nl = blbutil.Const.nl;
-            String s = "Error: Reference and target VCF files have no markers in common."
-                    + nl + "  Do the two VCF files share some identical markers that appear"
+            String s = "Error: Reference and target files have no markers in common."
+                    + nl + "  Do the two files share some identical markers that appear"
                     + nl + "  in the same order? Identical markers haave identical CHROM,"
                     + nl + "  POS, REF, and ALT fields.";
             throw new IllegalStateException(s);
@@ -92,16 +96,23 @@ public final class AdmixReader implements Closeable {
     }
 
     private AdmixReader(AdmixPar par) {
-        Filter<String> refSampFilt = FilterUtils.includeFilter(
-                AdmixUtils.readMap(par.ref_panel()).keySet()
-        );
         boolean includeFilter = par.gt_samples()!=null
                 && par.gt_samples().startsWith("^")==false;
         Filter<String> gtSampFilt = FilterUtil.sampleFilter(par.gtSamplesFile(),
                 includeFilter);
         Filter<Marker> markerFilter = FilterUtil.markerFilter(par.excludemarkers());
         this.targIt = refIt(par.gt(), gtSampFilt, markerFilter);
-        this.refIt = refIt(par.ref(), refSampFilt, markerFilter);
+
+        if (par.ref().getName().endsWith(".bref3")) {
+            this.refIt = bref3It(par, markerFilter);
+        }
+        else {
+            Filter<String> refSampFilt = FilterUtils.includeFilter(
+                AdmixUtils.readMap(par.ref_panel()).keySet()
+            );
+            
+            this.refIt = refIt(par.ref(), refSampFilt, markerFilter);
+        }
         this.targSamples = targIt.samples();
         this.refSamples = refIt.samples();
         this.targRefSamples = targRefSamples(refSamples, targSamples);
@@ -112,6 +123,23 @@ public final class AdmixReader implements Closeable {
         this.seqCoder = new SeqCoder3(targRefSamples);
         this.maxSeqCodedAlleles = Math.min(seqCoder.maxNSeq(), SeqCoder3.MAX_NALLELES);
         this.maxSeqCodingMajorCnt = maxSeqCodingMajorCnt(targRefSamples);
+    }
+
+    private SampleFileIt<RefGTRec> bref3It(AdmixPar par, Filter<Marker> markerFilter) {
+        Bref3It bref3It = new Bref3It(par.ref(), markerFilter);
+
+        Set<String> refPanelSamples = AdmixUtils.readMap(par.ref_panel()).keySet();
+        Set<String> refFileSamples = Set.of(bref3It.samples().ids());
+        if (!refPanelSamples.equals(refFileSamples)) {
+            String err = "The reference panel file does not contain the same samples as the reference bref3 file.";
+            String info = Const.nl + "Error      :  " + err
+                        + Const.nl + "Ref Panel  :  " + par.ref_panel()
+                        + Const.nl + "Ref File   :  " + par.ref()
+                        + Const.nl + Const.nl + "If you want to use a reference panel which contains less samples than the reference file, please use a VCF reference file.";
+            Utilities.exit(new Throwable(err), info);
+        }
+
+        return bref3It;
     }
 
     private static SampleFileIt<RefGTRec> refIt(File refFile,

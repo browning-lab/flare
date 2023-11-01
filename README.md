@@ -75,19 +75,27 @@ fill in the missing genotypes using the
 [Beagle](https://faculty.washington.edu/browning/beagle/beagle.html) program.
 Any input file with a name ending in ".gz" is assumed to be gzip-compressed.
 
-* **ref=[file]** where **[file]** is the reference VCF file that contains
-genotype data for each reference sample. Flare will ignore samples in the
-reference VCF file that are not present in the reference panel file
-(see the **ref-panel** parameter).
+* **ref=[file]** where **[file]** is the reference file that contains
+genotype data for each reference sample. This file may be in either VCF 
+or bref3 format. You can convert a reference VCF file to the bref3 format
+using the bref3 program obtainable through the 
+[Beagle homepage](https://faculty.washington.edu/browning/beagle/beagle.html). 
+Using the bref3 format should make Flare run faster. If a VCF file is provided, 
+Flare will ignore samples in reference VCF file that are not present in the 
+reference panel file. If a bref3 file is provided, the reference file must
+contain the same samples as are in the reference panel file. See the 
+**ref-panel** section for more information about parameter.
 
 * **ref-panel=[file]** where **[file]** is a reference panel file with two
 white-space-delimited fields per line. The first field is a sample identifier
 in the reference VCF file (see the **ref** parameter), and the second field
 is the name of the reference panel containing the reference sample.
-Flare will ignore samples in the reference VCF file that are not present
-in the reference panel file. A reference panel should contain individuals
-from the same source population. A reference panel should not normally
-contain admixed samples.
+If a VCF file used as the reference file, Flare will ignore samples in reference
+VCF file that are not present in the reference panel file. If a bref3 file used
+as the reference file, the reference file must contain the same samples as are 
+in the reference panel file. A reference panel should contain individuals from 
+the same source population. A reference panel should not normally contain
+admixed samples.
 
 * **gt=[file]** where **[file]** is the study VCF file containing genotype
 data for admixed study samples whose ancestry is to be inferred.
