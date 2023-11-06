@@ -33,7 +33,7 @@ import vcf.Steps;
  *
  * <p>Instances of class {@code IbsHaps} are immutable.</p>
  *
- * <p>Reference: Durbin, R. 2014. Bioinformatics 30(9):1266–1272.
+ * <p>Reference: Durbin, R. 2014. Bioinformatics 30(9):1266-1272.
  * doi:10.1093/bioinformatics/btu014</p>
  *
  * @author Brian L. Browning {@code <browning@uw.edu>}

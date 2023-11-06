@@ -4,7 +4,7 @@ The **flare** program uses a set of reference haplotypes
 to infer the ancestry of each allele in a set of admixed target
 haplotypes. The **flare** program is fast, accurate, and memory-efficient.
 
-Last updated: October 20, 2022  
+Last updated: November 6, 2023
 Current version: 0.3.0
 
 ## Contents
@@ -113,7 +113,7 @@ in cM units are available for
 
 * **array=[true/false]** specifies whether the input data are from a SNP array.
 The **min-mac** parameter is ignored if **array=true**.  By default,
-flare assumes the input data are sequence data (**default: array=false**). 
+flare assumes the input data are sequence data (**default: array=false**).
 
 * **min-maf=[number < 0.5]** specifies the minimum minor allele frequency in
 the reference VCF file in order for a marker to be included in the
@@ -122,7 +122,7 @@ the minor allele is the allele with the second-largest frequency.
 
 * **min-mac=[number ≥ 0]** specifies the minimum minor allele count in
 the reference VCF file in order for a marker to be included in the
-analysis (**default: min-mac=50**).  The **min-mac** parameter is ignored 
+analysis (**default: min-mac=50**).  The **min-mac** parameter is ignored
 if **array=true**. If **array=false**, the **min-mac** parameter must be less
 than one-half the number of reference haplotypes.  For multi-allelic markers,
 the minor allele is the allele with the second-largest frequency.
@@ -272,7 +272,7 @@ parameters to specify the model parameters used in the analysis.
 If you are analyzing an extremely large number of admixed target individuals
 and need to reduce memory use, you can partition the admixed target samples
 into subsets and analyze each subset of target samples separately (see the
-[**excludesamples**](#optional-parameters) parameter).  The inferred
+[**gt-samples**](#optional-parameters) parameter).  The inferred
 ancestry for a partitioned and a non-partitioned analysis will be the same if
 you specify [**em=false**](#optional-parameters) and use the same
 [**model**](#optional-parameters), [**seed**](#optional-parameters), and
@@ -301,7 +301,7 @@ The American Journal of Human Genetics Vol(issue):0-10.
 doi: https://doi.org/10.1016/j.ajhg.2022.XX.YYY
 -->
 
-[Sharon Browning](https://sites.uw.edu/sguy/) developed the **flare** method.  
+[Sharon Browning](https://sites.uw.edu/sguy/) developed the **flare** method.
 [Brian Browning](https://faculty.washington.edu/browning) developed the **flare** software.
 
 [Contents](#contents)
