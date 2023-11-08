@@ -34,7 +34,8 @@ import vcf.Samples;
 
 /**
  * <p>Class {@code AdmixWriter} contains methods for writing
- * inferred local ancestry to an output VCF file.</p>
+ * inferred local ancestry to an output VCF file and for writing
+ * per-global global ancestry probabilities.</p>
  *
  * <p>Instances of class {@code AdmixWriter} are immutable.</p>
  *

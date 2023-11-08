@@ -17,6 +17,7 @@
  */
 package vcf;
 
+import ints.IntArray;
 import java.util.Arrays;
 import java.util.stream.IntStream;
 
@@ -36,11 +37,58 @@ public class RefGT implements GT {
 
     @Override
     public long estBytes() {
-        int overhead = (1 + recs.length)*12; // assume 12 bytes overhead per "owned" object
+        int overhead = (1 + recs.length)*12;             // assume 12 bytes overhead per "owned" object
         long estBytes = overhead + (3 + recs.length)*8;  // assume 8 bytes per reference
-        estBytes += 4; // include 4 bytes for array length
-        for (int j=0; j<recs.length; ++j) {
-            estBytes += recs[j].estBytes();
+        estBytes += 4; // include 4 bytes to store array length
+        long alleleCodedCnt = 0;
+        long seqCodedCnt0 = 0;
+        long seqCodedCnt = 0;
+        long alleleCodedBytes = 0;
+        long seqCodedBytes0 = 0;
+        long seqCodedBytes1 = 0;
+        long sumLength0 = 0;
+        long sumLength1 = 0;
+        IntArray[] lastMaps = new IntArray[2];
+        for (RefGTRec rec : recs) {
+            if (rec.isAlleleCoded()) {
+                ++alleleCodedCnt;
+                alleleCodedBytes += rec.estBytes();
+            }
+            else {
+                // Cannot delegate to rec.estBytes() because there can be
+                // multiple references to the same maps[0] array
+                overhead = 2*12;            // assume 12 bytes overhead per "owned" object
+                estBytes = overhead + 4*8;  // assume 8 bytes per reference
+                IntArray[] maps = rec.maps();
+                assert maps.length==2;
+                if (maps[0]!=lastMaps[0]) {
+                    ++seqCodedCnt0;
+                    sumLength0 += maps[0].size();
+                    seqCodedBytes0 += (1 + maps[0].size())*4;   // includes 4 bytes to store array length
+                }
+                ++seqCodedCnt;
+                sumLength1 += maps[1].size();
+                seqCodedBytes1 += (1 + (maps[1].size()>>3))*4;  // assume 1 bit per allele plus 4 bytes for array length
+                lastMaps = maps;
+            }
+        }
+        long otherBytes = estBytes;
+        estBytes += (seqCodedBytes0 + seqCodedBytes1 + alleleCodedBytes);
+        boolean printSummary = false;
+        if (printSummary) {
+            System.out.println("RefGT:57 markers:        " + recs.length);
+            System.out.println("RefGT:58 alleleCodedCnt: " + alleleCodedCnt);
+            System.out.println("RefGT:59 seqCodedCnt:    " + seqCodedCnt);
+            System.out.println("RefGT:60 seqCodedCnt0:   " + seqCodedCnt0);
+            System.out.println("RefGT:61 meanLength0:      " + (sumLength0 / seqCodedCnt0));
+            System.out.println("RefGT:62 meanLength1:      " + (sumLength1 / seqCodedCnt));
+
+            System.out.println();
+            System.out.println("RefGT:71 overhead/fields KiB: " + (otherBytes >> 10));
+            System.out.println("RefGT:72 alleleCoded     KiB: " + (alleleCodedBytes >> 10));
+            System.out.println("RefGT:73 seqCoded0       KiB: " + (seqCodedBytes0 >> 10));
+            System.out.println("RefGT:74 seqCoded1       KiB: " + (seqCodedBytes1 >> 10));
+            System.out.println("RefGT:75 TOTAL           KiB: " + (estBytes       >> 10));
         }
         return estBytes;
     }
@@ -181,16 +229,6 @@ public class RefGT implements GT {
     @Override
     public boolean isPhased() {
         return true;
-    }
-
-    @Override
-    public int allele1(int marker, int hapPair) {
-        return recs[marker].allele1(hapPair);
-    }
-
-    @Override
-    public int allele2(int marker, int hapPair) {
-        return recs[marker].allele2(hapPair);
     }
 
     @Override

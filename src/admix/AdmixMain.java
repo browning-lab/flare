@@ -34,8 +34,8 @@ import java.util.Optional;
 public class AdmixMain {
 
     static final String EXECUTABLE = "flare.jar";
-    static final String REVISION = "flare.06Nov23.c5c.jar";
-    static final String PROGRAM = EXECUTABLE + "  [ version 0.3.0, 06Nov23.c5c ]";
+    static final String REVISION = "flare.__REV__.jar";
+    static final String PROGRAM = EXECUTABLE + "  [ version 0.4.0, __REV__ ]";
     static final String COPYRIGHT = "Copyright (C) 2022 Brian L. Browning";
     static final String COMMAND = "java -jar " + EXECUTABLE;
 
@@ -114,6 +114,8 @@ public class AdmixMain {
         try (AdmixChromData.It chromIt = new AdmixChromData.It(par)) {
             FixedParams fixedParams = FixedParams.create(par,
                     chromIt.refSamples(), chromIt.targSamples());
+            GlobalAncProbs globalAncProbs = new GlobalAncProbs(
+                    chromIt.targSamples().ids(), fixedParams.nAnc());
 
             try (AdmixWriter admixWriter = new AdmixWriter(fixedParams)) {
                 Optional<AdmixChromData> optChromData = chromIt.nextChrom();
@@ -128,16 +130,17 @@ public class AdmixMain {
                 ParamsInterface params = ParamEstimator.getParams(fixedParams, ibsHaps, log);
                 writeModelFile(params);
 
-                AncEstimator.estAncestry(ibsHaps, params, admixWriter);
+                AncEstimator.estAncestry(params, ibsHaps, globalAncProbs, admixWriter);
                 optChromData = chromIt.nextChrom();
                 while (optChromData.isPresent()) {
                     chromData = optChromData.get();
                     selectedHaps = selectedHaps.removeRefHaps();
                     ibsHaps = new IbsHaps(chromData, selectedHaps);
-                    AncEstimator.estAncestry(ibsHaps, params, admixWriter);
+                    AncEstimator.estAncestry(params, ibsHaps, globalAncProbs, admixWriter);
                     optChromData = chromIt.nextChrom();
                 }
             }
+            printGlobalAncProbs(par, globalAncProbs);
             Utilities.duoPrint(log, statistics(chromIt));
         }
     }
@@ -395,5 +398,13 @@ public class AdmixMain {
         sb.append("End Time            :  ");
         sb.append(Utilities.timeStamp());
         return sb.toString();
+    }
+
+    private static void printGlobalAncProbs(AdmixPar par,
+            GlobalAncProbs globalAncProbs) {
+        File outFile = new File(par.out() + ".global.anc.gz");
+        try (PrintWriter out = FileUtil.bgzipPrintWriter(outFile)) {
+            globalAncProbs.writeGlobalAncestry(out);
+        }
     }
 }

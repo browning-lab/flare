@@ -18,7 +18,6 @@
 package vcf;
 
 import java.util.Arrays;
-import java.util.stream.IntStream;
 
 /**
  * <p>Class {@code LowMafGTRc} stores genotypes for a list of samples
@@ -103,17 +102,6 @@ public final class LowMafGTRec implements GTRec {
         return marker;
     }
 
-
-    @Override
-    public int allele1(int sample) {
-        return get(sample<<1);
-    }
-
-    @Override
-    public int allele2(int sample) {
-        return get((sample<<1) | 0b1);
-    }
-
     @Override
     public int get(int hap) {
         if (hap < 0 || hap >= nHaps) {
@@ -127,27 +115,6 @@ public final class LowMafGTRec implements GTRec {
             }
         }
         return Arrays.binarySearch(missingSamples, (hap>>1))>=0 ? -1 : majorAllele;
-    }
-
-    @Override
-    public int[] alleles() {
-        int[] ia = IntStream.range(0, nHaps)
-                .map(h -> majorAllele)
-                .toArray();
-        for (int al=0; al<hapIndices.length; ++al) {
-            if (al != majorAllele) {
-                for (int h : hapIndices[al]) {
-                    ia[h] = al;
-                }
-            }
-        }
-        for (int s : missingSamples) {
-            int h1 = s<<1;
-            int h2 = h1 | 0b1;
-            ia[h1] = -1;
-            ia[h2] = -1;
-        }
-        return ia;
     }
 
     /**

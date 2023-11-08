@@ -36,7 +36,6 @@ public final class Markers {
     private final Marker[] markers;
     private final Set<Marker> markerSet;
     private final int[] sumAlleles;
-    private final int[] sumGenotypes;
     private final int[] sumHapBits;
     private final int hashCode;
 
@@ -44,13 +43,13 @@ public final class Markers {
      * Returns the estimated number of bytes consumed by this object,
      * excluding the overhead bytes required by {@code this}.
      * @return the estimated number of bytes required to store this object
-     */    
+     */
     public long estBytes() {
         int overhead = (5 + markers.length)*12; // assume 12 bytes overhead per "owned" object
         long estBytes = overhead + (5 + 2*markers.length)*8;  // assume 8 bytes per reference
         estBytes += markers.length*104; // assume diallelic SNV with shared String[] alleles and no String[] ids
         estBytes += (1 + sumAlleles.length)*4; // 4 bytes per array to store length;
-        estBytes += (1 + sumGenotypes.length)*4; // 4 bytes per array to store length;
+//        estBytes += (1 + sumGenotypes.length)*4; // 4 bytes per array to store length;
         estBytes += (1 + sumHapBits.length)*4; // 4 bytes per array to store length;
         estBytes += 4;
         return estBytes;
@@ -98,7 +97,6 @@ public final class Markers {
         this.markerSet = markerSet(markers);
 
         this.sumAlleles = cumSumAlleles(markers);
-        this.sumGenotypes = cumSumGenotypes(markers);
         this.sumHapBits = cumSumHaplotypeBits(markers);
         this.hashCode = Arrays.deepHashCode(markers);
     }
@@ -155,10 +153,17 @@ public final class Markers {
         return ia;
     }
 
-    private static int[] cumSumGenotypes(Marker[] markers) {
+    /**
+     * Return an array of length {@code this.size() + 1} whose
+     * {@code k}-th value is the the sum of the number of possible genotypes
+     * for markers with index less than {@code k}
+     * @return  an array whose {@code k}-th value is the the sum of the number
+     * of possible genotypes for markers with index less than {@code k}
+     */
+    public int[] cumSumGenotypes() {
         int[] ia = new int[markers.length + 1];
         for (int j=1; j<ia.length; ++j) {
-            ia[j] = ia[j-1] + markers[j-1].nGenotypes();
+            ia[j] = ia[j-1] + MarkerUtils.nGenotypes(markers[j-1].nAlleles());
         }
         return ia;
     }
@@ -318,27 +323,6 @@ public final class Markers {
      */
     public int sumAlleles() {
         return sumAlleles[markers.length];
-    }
-
-    /**
-     * Returns the sum of the number of possible genotypes for the markers
-     * with index less than the specified index.
-     * @param marker a marker index
-     * @return the sum of the number of possible genotypes for the markers
-     * with index less than the specified index
-     * @throws IndexOutOfBoundsException if
-     * {@code marker < 0 || marker > this.nMarkers()}
-     */
-    public int sumGenotypes(int marker) {
-        return sumGenotypes[marker];
-    }
-
-    /**
-     * Returns {@code this.sumGenotypes(this.nMarkers())}.
-     * @return {@code this.sumGenotypes(this.nMarkers())}
-     */
-    public int sumGenotypes() {
-        return sumGenotypes[markers.length];
     }
 
     /**

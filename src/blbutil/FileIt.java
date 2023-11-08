@@ -21,11 +21,11 @@ import java.io.Closeable;
 import java.io.File;
 
 /**
- * <p>An iterator for data elements in a file.  If an IOExceptions is thrown
- * while reading a file, the IOException is trapped, an appropriate error
- * message is written to standard out, and the Java Virtual Machine is
- * terminated.  The {@code Iterator.remove()} method is unsupported
- * and throws an {@code UnsupportedOperationException}.</p>
+ * <p>An iterator for data elements in a file.  If an {@code IOException}
+ * is thrown while reading a file, the {@code IOException} is trapped,
+ * an appropriate error message is written to standard out, and the
+ * Java Virtual Machine is terminated.  The {@code Iterator.remove()} method
+ * is unsupported and throws an {@code UnsupportedOperationException}.</p>
  *
  * <p>When the {@code FileIt} object is no longer needed, the {@code close()}
  * method should be invoked to release any system resources controlled

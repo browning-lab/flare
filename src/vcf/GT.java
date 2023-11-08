@@ -99,36 +99,6 @@ public interface GT {
     boolean isPhased();
 
     /**
-     * Returns the first allele for the specified marker and sample
-     * or return -1 if the allele is missing.  The order of the two alleles
-     * is unspecified if {@code this.isPhased() == false}.
-     * @param marker the marker index
-     * @param sample the sample index
-     * @return the first allele for the specified marker and sample
-     *
-     * @throws IndexOutOfBoundsException if
-     * {@code marker < 0 || marker >= this.nMarkers()}
-     * @throws IndexOutOfBoundsException if
-     * {@code sample < 0 || sample >= this.nSamples()}
-     */
-    int allele1(int marker, int sample);
-
-    /**
-     * Returns the second allele for the specified marker and sample
-     * or return -1 if the allele is missing. The order of the two alleles
-     * is unspecified if {@code this.isPhased() == false}.
-     * @param marker the marker index
-     * @param sample the sample index
-     * @return the  allele for the specified marker and sample
-     *
-     * @throws IndexOutOfBoundsException if
-     * {@code marker < 0 || marker >= this.nMarkers()}
-     * @throws IndexOutOfBoundsException if
-     * {@code sample < 0 || sample >= this.nSamples()}
-     */
-    int allele2(int marker, int sample);
-
-    /**
      * Returns the allele on the specified haplotype for the specified marker
      * or return -1 if the allele is missing. The order of the two alleles
      * is unspecified if {@code this.isPhased() == false}.
@@ -178,49 +148,4 @@ public interface GT {
      * {@code start < 0 ||  end > this.markers()}
      */
     GT restrict(int start, int end);
-
-    /**
-     * Returns the probability of the observed data for the specified marker
-     * and sample if the specified pair of unordered alleles is the true
-     * genotype. Returns {@code 1.0f} if the corresponding genotype
-     * determined by the {@code isPhased()}, {@code allele1()}, and
-     * {@code allele2()} methods is consistent with the specified ordered
-     * genotype, and returns {@code 0.0f} otherwise.
-     *
-     * @param gt the genotype data
-     * @param marker the marker index
-     * @param sample the sample index
-     * @param allele1 the first allele index
-     * @param allele2 the second allele index
-     * @return the probability of the observed data for the specified marker
-     * and sample if the specified pair of ordered alleles is the true
-     * ordered genotype
-     *
-     * @throws IndexOutOfBoundsException if
-     * {@code marker < 0 || marker >= this.nMarkers()}
-     * @throws IndexOutOfBoundsException if
-     * {@code samples < 0 || samples >= this.nSamples()}
-     * @throws IndexOutOfBoundsException if
-     * {@code allele1 < 0 || allele1 >= this.marker(marker).nAlleles()}
-     * @throws IndexOutOfBoundsException if
-     * {@code allele2 < 0 || allele2 >= this.marker(marker).nAlleles()}
-     */
-    static float gl(GT gt, int marker, int sample, int allele1, int allele2) {
-        int nAlleles = gt.marker(marker).nAlleles();
-        if (allele1 < 0 || allele1 >= nAlleles)  {
-            String s = "invalid alleles: (" + allele1 + "): " + marker;
-            throw new IllegalArgumentException(s);
-        }
-        if (allele2 < 0 || allele2 >= nAlleles) {
-            String s = "invalid alleles: (" + allele2 + "): " + marker;
-            throw new IllegalArgumentException(s);
-        }
-        int a1 = gt.allele1(marker, sample);
-        int a2 = gt.allele2(marker, sample);
-        boolean consistent = (a1==-1 || a1==allele1) && (a2==-1 || a2==allele2);
-        if (consistent==false) {
-            consistent = (a1==-1 || a1==allele2) && (a2==-1 || a2==allele1);
-        }
-        return consistent ? 1.0f : 0.0f;
-    }
 }

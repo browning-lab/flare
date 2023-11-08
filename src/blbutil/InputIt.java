@@ -17,6 +17,7 @@
  */
 package blbutil;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -36,7 +37,15 @@ import java.util.zip.GZIPInputStream;
  * is trapped, an error message is written to standard out, and the
  * Java Virtual Machine is terminated.
  * </p>
- * Instances of class {@code InputIt} are not thread-safe.
+ * <p>The GZIP file format specification is described
+ * <a href="https://www.ietf.org/rfc/rfc1952.txt">RFC 1952</a>
+ * and the BGZIP file format specification is described in the
+ * <a href="https://samtools.github.io/hts-specs/SAMv1.pdf">
+ * Sequence Alignment/Map Format Specification</a>
+ * </p>
+ *
+ * <p>Instances of class {@code InputIt} are not thread-safe.
+ * </p>
  *
  * @author Brian L. Browning {@code <browning@uw.edu>}
  */
@@ -51,7 +60,7 @@ public class InputIt implements FileIt<String> {
      * size that will iterate through lines of the specified input stream.
      *
      * @param is input stream of text data
-     *
+     * @param file the file that is the source of the input stream
      */
     private InputIt(InputStream is, File file) {
         BufferedReader br = null;
@@ -72,6 +81,7 @@ public class InputIt implements FileIt<String> {
      * that will iterate through the lines of the specified input stream.
      *
      * @param is input stream of text data
+     * @param file the file that is the source of the input stream
      * @param bufferSize the buffer size in bytes
      *
      * @throws IllegalArgumentException if {@code bufferSize < 0}
@@ -174,37 +184,61 @@ public class InputIt implements FileIt<String> {
     }
 
     /**
-     * Constructs and returns an {@code InputIt} instance with the specified
-     * buffer size that iterates through lines of text read from standard input.
-     *
-     * @param bufferSize the buffer size in bytes
-     *
-     * @return a new {@code InputIt} instance that iterates
-     * through lines of text read from standard input
-     *
-     * @throws IllegalArgumentException if {@code bufferSize < 0}
-     */
-    public static InputIt fromStdIn(int bufferSize) {
-        File file = null;
-        return new InputIt(System.in, file, bufferSize);
-    }
-
-    /**
-     * Constructs and returns an {@code InputIt} instance with the default
-     * buffer size that iterates through lines of the specified compressed
-     * or uncompressed text file. If the filename ends in ".gz", the file
-     * must be either BGZIP-compressed or GZIP-compressed.
-     *
+     * Constructs and returns a buffered {@code FileIt<String>} instance
+     * that iterates through lines of the specified compressed or
+     * uncompressed text file. If the filename ends in ".gz" or ".bgz", the
+     * file must be GZIP-compressed.
      * @param file a compressed or uncompressed text file
-     * @return  a new {@code InputIt} instance that iterates
-     * through lines of the specified text file
+     * @param nBufferedBlocks the number buffered GZIP blocks if the
+     * specified file is bgzip-compressed
+     * @return {@code FileIt<String>} instance that iterates through the
+     * lines of the specified file
      *
      * @throws NullPointerException if {@code file == null}
      */
-    public static InputIt fromGzipFile(File file) {
+    public static FileIt<String> fromBGZipFile(File file, int nBufferedBlocks) {
+        String filename = file.getName();
         try {
             InputStream is = new FileInputStream(file);
-            if (file.getName().endsWith(".gz")) {
+            BufferedInputStream bis = new BufferedInputStream(is);
+            if (filename.endsWith(".gz") || filename.endsWith(".bgz")) {
+                if (BGZipIt.beginsWithBgzipBlock(bis)) {
+                    return new BGZipIt(bis, nBufferedBlocks, file);
+                }
+                else {
+                    return new InputIt(new GZIPInputStream(bis), file);
+                }
+            }
+            else {
+                return new InputIt(is, file);
+            }
+        }
+        catch(FileNotFoundException e) {
+            Utilities.exit(e, "Error opening " + file);
+        }
+        catch(IOException e) {
+            Utilities.exit(e, "Error reading " + file);
+        }
+        assert false;
+        return null;
+    }
+
+    /**
+     * Constructs and returns a buffered {@code InputIt} instance that
+     * iterates through lines of the specified compressed or uncompressed
+     * text file. If the filename ends in ".gz", the file must be
+     * tGZIP-compressed.
+     *
+     * @param file a compressed or uncompressed text file
+     * @return  a buffered {@code InputIt} instance that iterates
+     * through lines of the specified text file
+     * @throws NullPointerException if {@code file == null}
+     */
+    public static InputIt fromGzipFile(File file) {
+        String filename = file.getName();
+        try {
+            InputStream is = new FileInputStream(file);
+            if (filename.endsWith(".gz") || filename.endsWith(".bgz")) {
                 return new InputIt(new GZIPInputStream(is), file);
             }
             else {
@@ -222,75 +256,17 @@ public class InputIt implements FileIt<String> {
     }
 
     /**
-     * Constructs and returns an {@code InputIt} instance with the specified
-     * buffer size that iterates through lines of the specified compressed
-     * or uncompressed text file. If the filename ends in ".gz", the file must
-     * be either BGZIP-compressed or GZIP-compressed.
-     *
-     * @param file a compressed or uncompressed text file
-     * @param bufferSize the buffer size in bytes
-     * @return  a new {@code InputIt} instance that iterates
-     * through lines of the specified text file
-     *
-     * @throws IllegalArgumentException if {@code bufferSize < 0}
-     * @throws NullPointerException if {@code file == null}
-     */
-    public static InputIt fromGzipFile(File file, int bufferSize) {
-        try {
-            InputStream is = new FileInputStream(file);
-            if (file.getName().endsWith(".gz")) {
-                return new InputIt(new GZIPInputStream(is), file, bufferSize);
-            }
-            else {
-                return new InputIt(is, file);
-            }
-        }
-        catch(FileNotFoundException e) {
-            Utilities.exit(e, "Error opening " + file);
-        }
-        catch(IOException e) {
-            Utilities.exit(e, "Error reading " + file);
-        }
-        assert false;
-        return null;
-    }
-
-     /**
-     * Constructs and returns an {@code InputIt} instance with the default
-     * buffer size that iterates through lines of the specified text file.
+     * Constructs and returns a buffered {@code InputIt} instance
+     * that iterates through lines of the specified text file.
      *
      * @param file a text file
-     * @return a new {@code InputIt} instance that iterates through
+     * @return a buffered {@code InputIt} instance that iterates through
      * lines of the specified text file
-     *
      * @throws NullPointerException if {@code filename == null}
      */
     public static InputIt fromTextFile(File file) {
         try {
             return new InputIt(new FileInputStream(file), file);
-        }
-        catch(FileNotFoundException e) {
-            Utilities.exit(e, "Error opening " + file);
-        }
-        assert false;
-        return null;
-    }
-
-     /**
-     * Constructs and returns an {@code InputIt} instance with the specified
-     * buffer size that iterates through lines of the specified text file.
-     *
-     * @param file a text file
-     * @param bufferSize the buffer size in bytes
-     * @return a new {@code InputIt} instance that iterates through
-     * lines of the specified text file
-     *
-     * @throws IllegalArgumentException if {@code bufferSize < 0}
-     * @throws NullPointerException if {@code filename == null}
-     */
-    public static InputIt fromTextFile(File file, int bufferSize) {
-        try {
-            return new InputIt(new FileInputStream(file), file, bufferSize);
         }
         catch(FileNotFoundException e) {
             Utilities.exit(e, "Error opening " + file);

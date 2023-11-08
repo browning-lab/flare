@@ -127,9 +127,11 @@ public class RefIt implements SampleFileIt<RefGTRec> {
         String[] nonDataLines = Arrays.copyOf(head, head.length-1);
         String firstDataLine = head[head.length-1];
         boolean[] isDiploid = VcfHeader.isDiploid(firstDataLine);
+        boolean storeId = true;
+        VcfFieldFilter filter = new VcfFieldFilter(storeId, false, false, false);
         this.vcfHeader = new VcfHeader(src, nonDataLines, isDiploid, sampleFilter);
         this.mapper = (String s) -> {
-            return RefGTRec.alleleCodedInstance(new VcfRecGTParser(vcfHeader, s));
+            return RefGTRec.alleleRefGTRec(new VcfRecGTParser(vcfHeader, s, filter));
         } ;
         this.markerFilter = markerFilter;
         this.seqCoder = new SeqCoder3(vcfHeader.samples());
@@ -213,8 +215,8 @@ public class RefIt implements SampleFileIt<RefGTRec> {
         List<RefGTRec> list = seqCoder.getCompressedList();
         int index = 0;
         for (int j=0, n=lowFreqBuffer.size(); j<n; ++j) {
-            GTRec ve = lowFreqBuffer.get(j);
-            if (ve==null) {
+            GTRec rec = lowFreqBuffer.get(j);
+            if (rec==null) {
                 lowFreqBuffer.set(j, list.get(index++));
             }
         }

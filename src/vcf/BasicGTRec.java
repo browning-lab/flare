@@ -91,27 +91,10 @@ public final class BasicGTRec implements GTRec {
         return isPhased[sample];
     }
 
-
-    @Override
-    public int allele1(int sample) {
-        return alleles[sample<<1];
-    }
-
-    @Override
-    public int allele2(int sample) {
-        return alleles[(sample<<1) | 0b1];
-    }
-
     @Override
     public int get(int hap) {
         return alleles[hap];
     }
-
-    @Override
-    public int[] alleles() {
-        return alleles.clone();
-    }
-
 
     /**
      * Returns the data represented by {@code this} as a VCF

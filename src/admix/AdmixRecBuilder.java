@@ -27,6 +27,7 @@ import java.io.PrintWriter;
 import java.text.DecimalFormat;
 import java.util.stream.IntStream;
 import vcf.Marker;
+import vcf.MarkerUtils;
 import vcf.RefGT;
 
 /**
@@ -259,55 +260,15 @@ public final class AdmixRecBuilder {
         }
         for (int m=mStart; m<mEnd; ++m) {
             Marker marker = targRefGT.marker(m);
-            printMarkerFields(marker, out);
+            MarkerUtils.printFirst7Fields(marker, out);
             out.print(Const.tab);
-            out.print(Const.MISSING_DATA_CHAR);             // QUAL
-            out.print(Const.tab);
-            out.print("PASS");                              // FILTER
-            out.print(Const.tab);
-            if (marker.end()!=-1) {                         // INFO
-                out.print("END=");
-                out.print(marker.end());
-            }
-            else {
-                out.print(Const.MISSING_DATA_CHAR);
-            }
+            out.print(marker.info());
             out.print(Const.tab);
             out.print("GT:AN1:AN2");                        // FORMAT
             if (printProbs) {
                 out.print(":ANP1:ANP2");
             }
             out.println(sampleData[m-mStart]);
-        }
-    }
-
-    private static void printMarkerFields(Marker marker, PrintWriter out) {
-        out.print(marker.chrom());
-        out.print(Const.tab);
-        out.print(marker.pos());
-        int nIds = marker.nIds();
-        if (nIds==0) {
-            out.print(Const.tab);
-            out.print(Const.MISSING_DATA_CHAR);
-        }
-        else {
-            for (int j=0; j<nIds; ++j) {
-                out.print(j==0 ? Const.tab : Const.semicolon);
-                out.print(marker.id(j));
-            }
-        }
-        int nAlleles = marker.nAlleles();
-        if (nAlleles==1) {
-            out.print(Const.tab);
-            out.print(marker.allele(0));
-            out.print(Const.tab);
-            out.print(Const.MISSING_DATA_CHAR);
-        }
-        else {
-            for (int j=0; j<nAlleles; ++j) {
-                out.print(j<2 ? Const.tab : Const.comma);
-                out.print(marker.allele(j));
-            }
         }
     }
 
@@ -328,7 +289,7 @@ public final class AdmixRecBuilder {
             DecimalFormat df = new DecimalFormat("#.##");
             this.probs = IntStream.range(0, 101)
                     .parallel()
-                    .mapToObj(j -> df.format(j/100.0))
+                    .mapToObj(j -> df.format(0.01*j))
                     .toArray(String[]::new);
         }
 

@@ -73,7 +73,6 @@ public final class IbsHaps {
                         hapToSelectedHapsIndex, batch, batchSize))
                 .flatMap(a -> Arrays.stream(a))
                 .toArray(WrappedIntArray[]::new);
-
     }
 
     private static WrappedIntArray hapToSelectedHapsIndex(

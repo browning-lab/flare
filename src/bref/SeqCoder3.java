@@ -26,7 +26,7 @@ import java.util.List;
 import vcf.Marker;
 import vcf.RefGTRec;
 import vcf.Samples;
-import vcf.SeqCodedRefGTRec;
+import vcf.HapRefGTRec;
 
 /**
  * <p>Class {@code SeqCoder3} compresses a sequence of allele-coded
@@ -58,8 +58,8 @@ public class SeqCoder3 {
     private final int maxNSeq;
     private final List<RefGTRec> recs;
     private final int[] hap2Seq;
-    private final IntList seq2Cnt;  // for processiing allele-coded markers
-    private final List<IntList> seq2AlleleMap;
+    private final IntList seq2Cnt;  // for processiing allele-coded records
+    private final List<IntList> seq2AlleleSeqMap;
 
     /**
      * Constructs a new {@code SeqCoder3} for the specified samples.
@@ -77,7 +77,7 @@ public class SeqCoder3 {
      * permitted if the {@code add()} method returns {@code true}
      * @throws NullPointerException if {@code samples == null}
      * @throws IllegalArgumentException
-     * {@code maxNSeq < 0 || maxNSeq >= Chracter.MAX_VALUE}
+     * {@code maxNSeq < 0 || maxNSeq >= Character.MAX_VALUE}
      */
     public SeqCoder3(Samples samples, int maxNSeq) {
         if (maxNSeq < 0 || maxNSeq >= Character.MAX_VALUE) {
@@ -88,7 +88,7 @@ public class SeqCoder3 {
         this.recs = new ArrayList<>(100);
         this.hap2Seq = new int[2*samples.size()];
         this.seq2Cnt = new IntList(3*maxNSeq/2 + 1);
-        this.seq2AlleleMap = new ArrayList<>(maxNSeq + 1);
+        this.seq2AlleleSeqMap = new ArrayList<>(maxNSeq + 1);
         initialize();
     }
 
@@ -96,7 +96,7 @@ public class SeqCoder3 {
      * Returns the default maximum number of sequences for the specified
      * number of samples.  The default value is equal to
      * {@code (int) Math.min((long) Math.pow(2, 2*Math.log10(size) + 1),
- Character.MAX_VALUE)}
+     * Character.MAX_VALUE)}
      * @param nSamples the number of samples
      * @return the default maximum number of sequences for the specified
      * number of samples
@@ -155,7 +155,7 @@ public class SeqCoder3 {
      * added to the list of compressed markers
      *
      * @throws IllegalArgumentException if
-     * {@code em.samples().equals(this.samples()) == false}
+     * {@code rec.samples().equals(this.samples()) == false}
      * @throws IllegalArgumentException if
      * {@code rec.isAlleleCoded() == false}
      * @throws NullPointerException if {@code rec == null}
@@ -177,7 +177,7 @@ public class SeqCoder3 {
                     for (int c=0; c<nCopies; ++c) {
                         int h = rec.hapIndex(a, c);
                         int oldSeq = hap2Seq[h];
-                        IntList list = seq2AlleleMap.get(oldSeq);
+                        IntList list = seq2AlleleSeqMap.get(oldSeq);
                         int index=0;
                         while (index<list.size() && list.get(index)!=a) {
                             index+=2;
@@ -195,21 +195,21 @@ public class SeqCoder3 {
                 }
             }
         }
-        assert seq2Cnt.size()==seq2AlleleMap.size();
+        assert seq2Cnt.size()==seq2AlleleSeqMap.size();
         return success;
     }
 
-    private void clearAlleleMap() {
-        for (int j=0, n=seq2AlleleMap.size(); j<n; ++j) {
-            seq2AlleleMap.get(j).clear();
+    private void clearSeq2AlleleMap() {
+        for (int j=0, n=seq2AlleleSeqMap.size(); j<n; ++j) {
+            seq2AlleleSeqMap.get(j).clear();
         }
     }
 
     private boolean setAlleleMap(RefGTRec rec) {
-        assert seq2Cnt.size()==seq2AlleleMap.size();
+        assert seq2Cnt.size()==seq2AlleleSeqMap.size();
         int nStartSeq = seq2Cnt.size();
         int[] seq2NonMajorCnt = new int[nStartSeq];
-        clearAlleleMap();
+        clearSeq2AlleleMap();
         int nAlleles = rec.marker().nAlleles();
         int majorAllele = rec.majorAllele();
         for (int a=0; a<nAlleles; ++a) {
@@ -219,7 +219,7 @@ public class SeqCoder3 {
                     int h = rec.hapIndex(a, c);
                     int seq = hap2Seq[h];
                     ++seq2NonMajorCnt[seq];
-                    IntList list = seq2AlleleMap.get(seq);
+                    IntList list = seq2AlleleSeqMap.get(seq);
                     if (list.isEmpty()) {
                         list.add(a);
                         list.add(seq);
@@ -231,16 +231,16 @@ public class SeqCoder3 {
                         }
                         if (index==list.size()) {
                             list.add(a);
-                            list.add(seq2AlleleMap.size());
-                            seq2AlleleMap.add(new IntList(4));
+                            list.add(seq2AlleleSeqMap.size());
+                            seq2AlleleSeqMap.add(new IntList(4));
                         }
                     }
                 }
             }
         }
         addMajorAllele(seq2NonMajorCnt, majorAllele);
-        if (seq2AlleleMap.size() >= maxNSeq) {
-            seq2AlleleMap.subList(nStartSeq, seq2AlleleMap.size()).clear();
+        if (seq2AlleleSeqMap.size() >= maxNSeq) {
+            seq2AlleleSeqMap.subList(nStartSeq, seq2AlleleSeqMap.size()).clear();
             return false;
         }
         else {
@@ -249,20 +249,20 @@ public class SeqCoder3 {
     }
 
     private void addMajorAllele(int[] seq2NonMajorCnt, int majorAllele) {
-        for (int s=0; s<seq2NonMajorCnt.length; ++s) {
-            if (seq2NonMajorCnt[s] < seq2Cnt.get(s)) {
-                IntList list = seq2AlleleMap.get(s);
+        for (int seq=0; seq<seq2NonMajorCnt.length; ++seq) {
+            if (seq2NonMajorCnt[seq] < seq2Cnt.get(seq)) {
+                IntList list = seq2AlleleSeqMap.get(seq);
                 if (list.isEmpty()) {
                     list.add(majorAllele);
-                    list.add(s);
+                    list.add(seq);
                 }
                 else {
                     // assign major allele the existing sequence index
                     list.add(list.get(0));
-                    assert list.get(1)==s;
-                    list.add(seq2AlleleMap.size());
+                    assert list.get(1)==seq;
+                    list.add(seq2AlleleSeqMap.size());
                     list.set(0, majorAllele);
-                    seq2AlleleMap.add(new IntList(4));
+                    seq2AlleleSeqMap.add(new IntList(4));
                 }
             }
         }
@@ -279,28 +279,28 @@ public class SeqCoder3 {
             return Collections.emptyList();
         }
         List<RefGTRec> list = new ArrayList<>(recs.size());
-        int[] seq2Hap = seq2Hap();  // can this be created when adding records?
+        int[] seq2Hap = seq2FirstHap();
         IntArray hap2seq =  IntArray.packedCreate(hap2Seq, seq2Hap.length);
         for (int j=0, n=recs.size(); j<n; ++j) {
             RefGTRec rec = recs.get(j);
             Marker m = rec.marker();
             IntArray seq2allele = seq2Allele(rec, seq2Hap);
-            list.add(new SeqCodedRefGTRec(m, samples, hap2seq, seq2allele));
+            list.add(new HapRefGTRec(m, samples, hap2seq, seq2allele));
         }
         initialize();
         return list;
     }
 
-    private int[] seq2Hap() {
-        int[] seqToHap = new int[seq2AlleleMap.size()];
-        Arrays.fill(seqToHap, -1);
+    private int[] seq2FirstHap() {
+        int[] seqToFirstHap = new int[seq2AlleleSeqMap.size()];
+        Arrays.fill(seqToFirstHap, -1);
         for (int h=0; h<hap2Seq.length; ++h) {
             int seq = hap2Seq[h];
-            if (seqToHap[seq] == -1) {
-                seqToHap[seq] = h;
+            if (seqToFirstHap[seq] == -1) {
+                seqToFirstHap[seq] = h;
             }
         }
-        return seqToHap;
+        return seqToFirstHap;
     }
 
     private IntArray seq2Allele(RefGTRec rec, int[] seq2Hap) {
@@ -317,11 +317,11 @@ public class SeqCoder3 {
     private void initialize() {
         recs.clear();
         seq2Cnt.clear();
-        seq2AlleleMap.clear();
+        seq2AlleleSeqMap.clear();
 
         // initialize with empty sequence (seq index is 0)
         Arrays.fill(hap2Seq, 0);
         seq2Cnt.add(hap2Seq.length);
-        seq2AlleleMap.add(new IntList(4));
+        seq2AlleleSeqMap.add(new IntList(4));
     }
 }

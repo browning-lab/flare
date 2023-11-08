@@ -42,25 +42,28 @@ public final class AncEstimator {
      * specified {@code AdmixWriter}.
      * @param ibsHaps IBS segments
      * @param params the local ancestry model parameters
+     * @param globalAncProbs an object for storing global ancestry
+     * probabilities
      * @param admixWriter an object to which output will be written
      * @throws IllegalArgumentException if
      * {@code params.par() != admixWriter.par()}
      * @throws NullPointerException if
-     * {@code (ibsHaps == null) || (params == null) || (admixWriter == null)}
+     * {@code (params == null) || (ibsHaps == null) || (globalAncProbs == null) || (admixWriter == null)}
      */
-    public static void estAncestry(IbsHaps ibsHaps, ParamsInterface params,
-            AdmixWriter admixWriter) {
+    public static void estAncestry(ParamsInterface params, IbsHaps ibsHaps,
+            GlobalAncProbs globalAncProbs, AdmixWriter admixWriter) {
         if (params.fixedParams().par() != admixWriter.par()) {
             throw new IllegalArgumentException("inconsistent data");
         }
-        EstimatedAncestry estAnc = estAncestry(ibsHaps, params);
+        EstimatedAncestry estAnc = estAncestry(params, ibsHaps, globalAncProbs);
         admixWriter.writeAncestry(estAnc);
     }
 
-    private static EstimatedAncestry estAncestry(IbsHaps ibsHaps, ParamsInterface params) {
+    private static EstimatedAncestry estAncestry(ParamsInterface params,
+            IbsHaps ibsHaps, GlobalAncProbs globalAncProbs) {
         AdmixData data = new AdmixData(ibsHaps.chromData(), params);
         int nTargHaps = ibsHaps.chromData().nTargHaps();
-        EstimatedAncestry estAnc = new EstimatedAncestry(data);
+        EstimatedAncestry estAnc = new EstimatedAncestry(data, globalAncProbs);
         AtomicInteger index = new AtomicInteger(0);
         int nThreads = params.fixedParams().par().nthreads();
         ExecutorService es = Executors.newFixedThreadPool(nThreads);

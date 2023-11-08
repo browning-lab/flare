@@ -40,29 +40,30 @@ public class EstimatedAncestry {
     private final int nAnc;
     private final int ancProbsLength;
     private final int nTargHaps;
-    private final int nThreads;
 
     private final boolean storeAncProbs;
     private final AdmixRecBuilder.ProbFormatter probFormatter;
     private final AtomicReferenceArray<FloatArray> hapToAncProbs;
     private final AtomicReferenceArray<IntArray> hapToAnc;
+    private final GlobalAncProbs globalAncProbs;
 
     /**
      * Constructs a new {@code EstimatedAncestry} instance from the specified
-     * data.t
+     * data.
      * @param admixData immutable input data for a chromosome and analysis
      * parameters for local ancestry inference
+     * @param globalAncProbs an object for storing global ancestry
+     * probabilities
      * @throws NullPointerException if
-     * {@code admixData == null}
+     * {@code (admixData == null) || (globalAncProbs == null)}
      */
-    public EstimatedAncestry(AdmixData admixData) {
+    public EstimatedAncestry(AdmixData admixData, GlobalAncProbs globalAncProbs) {
         AdmixPar par = admixData.params().fixedParams().par();
         this.params = admixData.params();
         this.targRefGT = admixData.chromData().targRefGT();
         this.nAnc = params.fixedParams().nAnc();
         this.ancProbsLength = targRefGT.nMarkers()*nAnc;
         this.nTargHaps = admixData.chromData().nTargHaps();
-        this.nThreads = par.nthreads();
         this.storeAncProbs = par.probs();
         if (storeAncProbs) {
             probFormatter = new AdmixRecBuilder.ProbFormatter();
@@ -74,6 +75,7 @@ public class EstimatedAncestry {
             hapToAncProbs = null;
             hapToAnc = new AtomicReferenceArray<>(nTargHaps);
         }
+        this.globalAncProbs = globalAncProbs;
     }
 
     /**
@@ -119,11 +121,12 @@ public class EstimatedAncestry {
             throw new IllegalArgumentException(String.valueOf(ancProbs.length));
         }
         if (storeAncProbs) {
-            hapToAncProbs.set(targHap, new FloatArray(ancProbs));
+            hapToAncProbs.getAndUpdate(targHap, x -> new FloatArray(ancProbs));
         }
         else {
-            hapToAnc.set(targHap, mostProbableAncestry(ancProbs));
+            hapToAnc.getAndUpdate(targHap, x -> mostProbableAncestry(ancProbs));
         }
+        globalAncProbs.add(targHap, targRefGT.nMarkers(), ancProbs);
     }
 
     private IntArray mostProbableAncestry(double[] ancProbs) {
@@ -159,6 +162,7 @@ public class EstimatedAncestry {
         if (end<start || end>targRefGT.nMarkers()) {
             throw new IndexOutOfBoundsException(String.valueOf(end));
         }
+        int nThreads = params.fixedParams().par().nthreads();
         int stepSize = (end - start + nThreads - 1)/nThreads;
         IntList partEnds = new IntList(1<<8);
         for (int j=start; j<end; j+=stepSize) {

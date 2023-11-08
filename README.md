@@ -1,11 +1,11 @@
 # flare
 
 The **flare** program uses a set of reference haplotypes
-to infer the ancestry of each allele in a set of admixed target
-haplotypes. The **flare** program is fast, accurate, and memory-efficient.
+to infer the ancestry of each allele in a set of admixed study samples. 
+The **flare** program is fast, accurate, and memory-efficient.
 
-Last updated: November 6, 2023  
-Current version: 0.3.0
+Last updated: November 7, 2023  
+Current version: 0.4.0
 
 ## Contents
 
@@ -74,6 +74,10 @@ If a VCF file has unphased or missing genotypes, you can phase the genotypes and
 fill in the missing genotypes using the
 [Beagle](https://faculty.washington.edu/browning/beagle/beagle.html) program.
 Any input file with a name ending in ".gz" is assumed to be gzip-compressed.
+Any input VCF file with a name ending in ".bref3" is assumed to be
+bref3-compressed.  Software for bref3 compression and decompression can be
+downloaded from the
+[Beagle web site](https://faculty.washington.edu/browning/beagle/beagle.html).
 
 * **ref=[file]** where **[file]** is the reference VCF file that contains
 genotype data for each reference sample. Flare will ignore samples in the
@@ -128,9 +132,9 @@ than one-half the number of reference haplotypes.  For multi-allelic markers,
 the minor allele is the allele with the second-largest frequency.
 
 * **probs=[true/false]** specifies whether posterior ancestry probabilities
-will be reported (**default: probs=false**). The ancestry
-with highest posterior probability for each haplotype and marker is _always_
-reported in the output VCF file.
+are reported (**default: probs=false**). At each marker, the ancestry with
+the highest posterior probability for each haplotype is _always_ reported
+in the output VCF file.
 If **probs=true**, posterior probabilities for each ancestry, haplotype, and
 marker will also be reported in the output VCF file.
 Reporting posterior probabilities will modestly increase memory use and
@@ -147,15 +151,15 @@ model parameters (see [**Model file format**](#model-file-format)). If the
 **model** parameter is not used, **flare** will supply a reasonable set of
 model parameters (see the [**flare** paper](#citation) for details).
 If **em=true** (the default), **flare** will estimate the number of
-generations since admixture and the proportion of target genotypes with each
-ancestry and will replace the values for these two parameters in the **model**
-file with their estimated values.
+generations since admixture and the proportion of genotypes with each 
+ancestry and will replace the values for these two parameters 
+in the **model** file with their estimated values.
 The model parameters used in the analysis are reported in the output
 [**.model**](#output-files) file.
 
 * **em=[true/false]** specifies whether the number of generations since
-admixture and the proportion of target genotypes with each ancestry will be
-estimated using an iterative expectation maximization (EM) algorithm
+admixture and the proportion of genotypes with each ancestry will
+be estimated using an iterative expectation maximization (EM) algorithm
 prior to inferring local ancestry (**default: em=true**).
 
 * **nthreads=[integer ≥ 1]** specifies the number of computational threads to
@@ -184,8 +188,8 @@ can be a VCF record's CHROM and POS fields separated by a colon
 [Contents](#contents)
 
 ## Output files
-The **flare** program produces three output files: a **log** file, a
-**model** file, and a **VCF** file.
+The **flare** program produces four output files: a **log** file, a
+**model** file, a **VCF** file, and a **global ancestries** file.
 
 The output **log** file (.log) contains a summary of the analysis.
 
@@ -194,14 +198,25 @@ analysis. The output model file has the same format as the optional input
 model file (see [Model file format](#model-file-format)).
 
 The output **VCF** file (.anc.vcf.gz) contains the phased input genotypes and
-the estimated local ancestry for the target samples. The most probable ancestry
-at each marker for a target sample's first and second haplotype are reported
-in the **AN1** and **AN2** FORMAT subfields.
+the estimated local ancestry for each allele. The most probable 
+ancestry at each marker for a admixed sample's first and second haplotype 
+are reported in the **AN1** and **AN2** FORMAT subfields.
 If [**probs=true**](#optional-parameters), the posterior
-ancestry probabilities at each marker for the target sample's first and
+ancestry probabilities at each marker for the admixed sample's first and
 second haplotypes are reported in the **ANP1** and **ANP2** FORMAT subfields.
 The integer that denotes each ancestry is listed in the
 "##ANCESTRY=<...>" meta-information line.
+
+The output **global ancestries** file (.global.anc.gz) contains the
+estimated ancestry proportions for each admixed sample.  Each 
+tab-delimited line in the file gives global ancestry probabilities for 
+one sample. The first field is the sample identifier, and the 
+remaining fields report the global ancestry proportions for each ancestry.
+The $k$-th ancestry probability corresponds to the $k$-th ancestry in the 
+output **VCF** file. 
+The global probability for an ancestry in an individual is the mean 
+ancestry probability across all markers and across both haplotypes in 
+the individual.
 
 [Contents](#contents)
 
@@ -214,33 +229,33 @@ A comment line is a line whose first non-white-space character is the
 All other lines are data lines. Data lines contain white-space delimited
 fields that specify the model parameters.
 
-If there are *A* ancestries and *P* reference panels, the model file will
-contains (2*A* + 5) data lines.
+If there are $A$ ancestries and $P$ reference panels, the model file will
+contains $(2A + 5)$ data lines.
 
-* The first data line is the list of *A* ancestry names.  The first ancestry
+* The first data line is the list of $A$ ancestry names.  The first ancestry
 in the list has index 1.
 
-* The second data line is the list of the *P* reference panel names. The
+* The second data line is the list of the $P$ reference panel names. The
 first reference panel in the list has index 1.
 
 * The third data line is the number of generations since admixture.
 
-* The fourth data line is a vector of length *A* whose *i*-th element
-is the proportion of target genotypes with ancestry *i*.
+* The fourth data line is a vector of length $A$ whose $i$-th element
+is the proportion of admixed sample genotypes with ancestry $i$.
 
-* The next *A* data lines contain the first *A x P* matrix. The *(i,j)*-th
+* The next $A$ data lines contain the first $A \times P$ matrix. The $(i,j)$-th
 element of the matrix is the probability that a model state haplotype is in
-reference panel *j* when the model state ancestry is *i*.
+reference panel $j$ when the model state ancestry is $i$.
 
-* The next *A* data lines contain the second *A x P* matrix.  The *(i,j)*-th
+* The next $A$ data lines contain the second $A \times P$ matrix.  The $(i,j)$-th
 element of the matrix is the probability that a model state haplotype and the
-target haplotype carry different alleles when the model state haplotype is in
-reference panel *j* and the model state ancestry is *i*.
+admixed sample haplotype carry different alleles when the model state haplotype 
+is in reference panel $j$ and the model state ancestry is $i$.
 
-* The final data line is a vector of length *A* whose
-*i*-th element is the the rate of the exponential identity-by-descent segment
+* The final data line is a vector of length $A$ whose
+$i$-th element is the the rate of the exponential identity-by-descent segment
 cM-length distribution when the most recent common ancestor is pre-admixture
-and has ancestry *i*.
+and has ancestry $i$.
 
 It is not normally necessary to use a model file
 because **flare** will automatically estimate model parameters by default
@@ -269,9 +284,9 @@ If there are not enough data to accurately estimate model parameters, you can
 use the [**model**](#optional-parameters) and [**em=false**](#optional-parameters)
 parameters to specify the model parameters used in the analysis.
 
-If you are analyzing an extremely large number of admixed target individuals
-and need to reduce memory use, you can partition the admixed target samples
-into subsets and analyze each subset of target samples separately (see the
+If you are analyzing an extremely large number of admixed samples
+and need to reduce memory use, you can partition the admixed samples
+into subsets and analyze each subset of admixed samples separately (see the
 [**gt-samples**](#optional-parameters) parameter).  The inferred
 ancestry for a partitioned and a non-partitioned analysis will be the same if
 you specify [**em=false**](#optional-parameters) and use the same
@@ -292,16 +307,11 @@ If you use **flare** in a published analysis, please report the program
 version printed in the **log** file and cite the article describing
 the **flare** method:
 
-> S R Browning, R K Waples, B L Browning. Fast, accurate local ancestry
-estimation with FLARE. bioRxiv 2022.08.02.502540;
-doi: https://doi.org/10.1101/2022.08.02.502540
+> S R Browning, R K Waples, B L Browning (2023). Fast, accurate local ancestry
+estimation with FLARE. The American Journal of Human Genetics 110(2):326-335.
+doi: http://dx.doi.org/10.1016/j.ajhg.2022.12.010
 
-<!--
-The American Journal of Human Genetics Vol(issue):0-10.
-doi: https://doi.org/10.1016/j.ajhg.2022.XX.YYY
--->
-
-[Sharon Browning](https://sites.uw.edu/sguy/) developed the **flare** method.
+[Sharon Browning](https://sites.uw.edu/sguy/) developed the **flare** method.  
 [Brian Browning](https://faculty.washington.edu/browning) developed the **flare** software.
 
 [Contents](#contents)

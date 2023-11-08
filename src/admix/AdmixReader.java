@@ -24,6 +24,7 @@ import blbutil.FilterUtils;
 import blbutil.InputIt;
 import blbutil.SampleFileIt;
 import blbutil.Utilities;
+import bref.Bref3It;
 import bref.SeqCoder3;
 import ints.IndexArray;
 import ints.WrappedIntArray;
@@ -100,8 +101,8 @@ public final class AdmixReader implements Closeable {
         Filter<String> gtSampFilt = FilterUtil.sampleFilter(par.gtSamplesFile(),
                 includeFilter);
         Filter<Marker> markerFilter = FilterUtil.markerFilter(par.excludemarkers());
-        this.targIt = refIt(par.gt(), gtSampFilt, markerFilter);
-        this.refIt = refIt(par.ref(), refSampFilt, markerFilter);
+        this.targIt = refIt(par.gt(), gtSampFilt, markerFilter, par.nthreads());
+        this.refIt = refIt(par.ref(), refSampFilt, markerFilter, par.nthreads());
         this.targSamples = targIt.samples();
         this.refSamples = refIt.samples();
         this.targRefSamples = targRefSamples(refSamples, targSamples);
@@ -115,9 +116,19 @@ public final class AdmixReader implements Closeable {
     }
 
     private static SampleFileIt<RefGTRec> refIt(File refFile,
-            Filter<String> sampleFilter, Filter<Marker> markerFilter) {
-        FileIt<String> it0 = InputIt.fromGzipFile(refFile);
-        return RefIt.create(it0, sampleFilter, markerFilter);
+            Filter<String> sampleFilter, Filter<Marker> markerFilter,
+            int nThreads) {
+        String filename = refFile.toString();
+        SampleFileIt<RefGTRec> refIt;
+        if (filename.endsWith(".bref3")) {
+            refIt = new Bref3It(refFile, sampleFilter, markerFilter);
+        }
+        else {
+            int nBufferedBlocks = nThreads << 3;
+            FileIt<String> it = InputIt.fromBGZipFile(refFile, nBufferedBlocks);
+            refIt = RefIt.create(it, sampleFilter, markerFilter);
+        }
+        return refIt;
     }
 
     private static Samples targRefSamples(Samples refSamples, Samples targSamples) {
@@ -339,7 +350,7 @@ public final class AdmixReader implements Closeable {
         if (lowFreqBuffer.size()==Integer.MAX_VALUE) {
            flushCompressedRecords();
         }
-        rec = RefGTRec.alleleCodedInstance(rec);
+        rec = RefGTRec.alleleRefGTRec(rec);
         int[] alCnts = rec.alleleCounts();
         if (alCnts[rec.majorAllele()]>maxSeqCodingMajorCnt
                || alCnts.length>maxSeqCodedAlleles) {

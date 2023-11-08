@@ -22,7 +22,9 @@ import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
@@ -149,8 +151,8 @@ public class Utilities {
                     String line = it.next().trim();
                     if (line.length() > 0) {
                         if (StringUtil.countFields(line) > 1) {
-                            String s = "line has >1 white-space delimited fields: "
-                                    + line;
+                            String s = "Line has more than one white-space delimited field (file: '"
+                                    + file + "'; line: '" + line + "')";
                             throw new IllegalArgumentException(s);
                         }
                         idSet.add(line);
@@ -307,6 +309,63 @@ public class Utilities {
             ia[j] = ia[j+x];
             ia[j+x] = tmp;
         }
+    }
+
+    /**
+     * Returns a two-dimensional array with indices of common array
+     * elements. If there are {@code n} elements in common between
+     * the {@code a1} and {@code a2} arrays, then for {@code j} satisfying
+     * {@code (0 <= j && j < n)}, the {@code [0][j]} and {@code P[1][j]}
+     * elements of the returned array are the indices of the {@code j}-th
+     * common element in the {@code a1} and {@code a2} arrays respectively.
+     * Common elements are indexed according to their order in the
+     * {@code a1} array.
+     * @param <E> the type of array element
+     * @param a1 an array of elements
+     * @param a2 an array of elements
+     * @return a two-dimensional array with indicies of common array
+     * elements
+     * @throws IllegalArgumentException if the {@code a1} or {@code a2} arrays
+     * have a duplicate element
+     * @throws NullPointerException if {@code a1 == null || a2 == null}
+     */
+    public static <E> int[][] commonIndices(E[] a1, E[] a2) {
+        Map<E, Integer> map1 = arrayToMap(a1);
+        Map<E, Integer> map2 = arrayToMap(a2);
+        map1.keySet().retainAll(map2.keySet());
+        int[][] indices = new int[2][map1.size()];
+        int index = 0;
+        for (int j=0; j<a1.length; ++j) {
+            E id = a1[j];
+            if (map1.containsKey(id)) {
+                assert map2.keySet().contains(id);
+                indices[0][index] = map1.get(id);
+                indices[1][index++] = map2.get(id);
+            }
+        }
+        return indices;
+    }
+
+    /**
+     * Returns a map from array element to array index
+     * @param <E> the type of array element
+     * @param array an array
+     * @return a map from array element to array index
+     * @throws IllegalArgumentException if the {@code array}
+     * has a duplicate element
+     * @throws NullPointerException if {@code array == null}
+     */
+    public static <E> HashMap<E, Integer> arrayToMap(E[] array) {
+        HashMap<E, Integer> map = new HashMap<>();
+        for (int j=0; j<array.length; ++j) {
+            E e = array[j];
+            if (map.containsKey(e)) {
+                String s = "duplicate element in array: " + e;
+                throw new IllegalArgumentException(s);
+            }
+            map.put(e, j);
+        }
+        return map;
     }
 }
 
