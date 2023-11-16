@@ -144,8 +144,11 @@ public final class BGZipIt implements FileIt<String> {
     }
 
     private void fillBuffer() {
-        byte[][] blocks = readAndInflateBlocks(is, leftOverBytes, nBufferedBlocks);
-        if (blocks.length>0) {
+        while (lines.isEmpty()) {
+            byte[][] blocks = readAndInflateBlocks(is, leftOverBytes, nBufferedBlocks);
+            if (blocks.length == 0) {
+                return;
+            }
             int[] eolIndices = IntStream.range(0, blocks.length)
                     .parallel()
                     .flatMap(j -> eolIndices(j, blocks[j]))
@@ -155,12 +158,12 @@ public final class BGZipIt implements FileIt<String> {
         }
     }
 
-    private static IntStream eolIndices(int index, byte[] bytes) {
+    private static IntStream eolIndices(int block, byte[] bytes) {
         IntList il = new IntList();
-        for (int j=0; j<bytes.length; ++j) {
-            if (bytes[j]==LF) {
-                il.add(index);
-                il.add(j);
+        for (int b=0; b<bytes.length; ++b) {
+            if (bytes[b]==LF) {
+                il.add(block);
+                il.add(b);
             }
         }
         return il.stream();
