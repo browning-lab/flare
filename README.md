@@ -1,11 +1,11 @@
 # flare
 
 The **flare** program uses a set of reference haplotypes
-to infer the ancestry of each allele in a set of admixed study samples. 
+to infer the ancestry of each allele in a set of admixed study samples.
 The **flare** program is fast, accurate, and memory-efficient.
 
-Last updated: November 16, 2023  
-Current version: 0.4.1
+Last updated: November 21, 2023
+Current version: 0.4.2
 
 ## Contents
 
@@ -151,8 +151,8 @@ model parameters (see [**Model file format**](#model-file-format)). If the
 **model** parameter is not used, **flare** will supply a reasonable set of
 model parameters (see the [**flare** paper](#citation) for details).
 If **em=true** (the default), **flare** will estimate the number of
-generations since admixture and the proportion of genotypes with each 
-ancestry and will replace the values for these two parameters 
+generations since admixture and the proportion of genotypes with each
+ancestry and will replace the values for these two parameters
 in the **model** file with their estimated values.
 The model parameters used in the analysis are reported in the output
 [**.model**](#output-files) file.
@@ -198,8 +198,8 @@ analysis. The output model file has the same format as the optional input
 model file (see [Model file format](#model-file-format)).
 
 The output **VCF** file (.anc.vcf.gz) contains the phased input genotypes and
-the estimated local ancestry for each allele. The most probable 
-ancestry at each marker for a admixed sample's first and second haplotype 
+the estimated local ancestry for each allele. The most probable
+ancestry at each marker for a admixed sample's first and second haplotype
 are reported in the **AN1** and **AN2** FORMAT subfields.
 If [**probs=true**](#optional-parameters), the posterior
 ancestry probabilities at each marker for the admixed sample's first and
@@ -208,14 +208,14 @@ The integer that denotes each ancestry is listed in the
 "##ANCESTRY=<...>" meta-information line.
 
 The output **global ancestries** file (.global.anc.gz) contains the
-estimated ancestry proportions for each admixed sample.  Each 
-tab-delimited line in the file gives global ancestry probabilities for 
-one sample. The first field is the sample identifier, and the 
+estimated ancestry proportions for each admixed sample.  Each
+tab-delimited line in the file gives global ancestry probabilities for
+one sample. The first field is the sample identifier, and the
 remaining fields report the global ancestry proportions for each ancestry.
-The $k$-th ancestry probability corresponds to the $k$-th ancestry in the 
-output **VCF** file. 
-The global probability for an ancestry in an individual is the mean 
-ancestry probability across all markers and across both haplotypes in 
+The $k$-th ancestry probability corresponds to the $k$-th ancestry in the
+output **VCF** file.
+The global probability for an ancestry in an individual is the mean
+ancestry probability across all markers and across both haplotypes in
 the individual.
 
 [Contents](#contents)
@@ -249,7 +249,7 @@ reference panel $j$ when the model state ancestry is $i$.
 
 * The next $A$ data lines contain the second $A \times P$ matrix.  The $(i,j)$-th
 element of the matrix is the probability that a model state haplotype and the
-admixed sample haplotype carry different alleles when the model state haplotype 
+admixed sample haplotype carry different alleles when the model state haplotype
 is in reference panel $j$ and the model state ancestry is $i$.
 
 * The final data line is a vector of length $A$ whose
@@ -311,7 +311,7 @@ the **flare** method:
 estimation with FLARE. The American Journal of Human Genetics 110(2):326-335.
 doi: http://dx.doi.org/10.1016/j.ajhg.2022.12.010
 
-[Sharon Browning](https://sites.uw.edu/sguy/) developed the **flare** method.  
+[Sharon Browning](https://sites.uw.edu/sguy/) developed the **flare** method.
 [Brian Browning](https://faculty.washington.edu/browning) developed the **flare** software.
 
 [Contents](#contents)

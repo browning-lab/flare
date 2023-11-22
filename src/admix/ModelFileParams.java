@@ -85,9 +85,9 @@ public class ModelFileParams implements ParamsInterface {
                 String candidate = it.next().trim();
                 if (candidate.length()>0 && candidate.charAt(0)!='#') {
                     lines.add(candidate);
-                    if (lines.size()==2) {
+                    if (lines.size()==1) {
                         nAnc = StringUtil.countFields(candidate);
-                        maxLines = 10 + 4 + 2*nAnc;
+                        maxLines = 10 + 5 + 2*nAnc;
                     }
                 }
             }

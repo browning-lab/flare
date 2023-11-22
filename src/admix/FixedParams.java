@@ -120,7 +120,7 @@ public class FixedParams {
         this.refHapToPanel = AdmixRefPanels.hapToPanel(sampleToRefPanel, refPanelIds);
         this.nPanelHaps = AdmixRefPanels.nPanelHaps(refHapToPanel, refPanelIds.length);
         if (par.anc_panel()==null) {
-            this.ancIds = refPanelIds;
+            this.ancIds = ancIds;
             this.ancToPanels = IntStream.range(0, refPanelIds.length)
                 .mapToObj(j -> new WrappedIntArray(new int[]{j}))
                 .toArray(IntArray[]::new);
