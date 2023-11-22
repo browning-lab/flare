@@ -4,7 +4,7 @@ The **flare** program uses a set of reference haplotypes
 to infer the ancestry of each allele in a set of admixed study samples.
 The **flare** program is fast, accurate, and memory-efficient.
 
-Last updated: November 21, 2023
+Last updated: November 21, 2023  
 Current version: 0.4.2
 
 ## Contents
@@ -311,7 +311,7 @@ the **flare** method:
 estimation with FLARE. The American Journal of Human Genetics 110(2):326-335.
 doi: http://dx.doi.org/10.1016/j.ajhg.2022.12.010
 
-[Sharon Browning](https://sites.uw.edu/sguy/) developed the **flare** method.
+[Sharon Browning](https://sites.uw.edu/sguy/) developed the **flare** method.  
 [Brian Browning](https://faculty.washington.edu/browning) developed the **flare** software.
 
 [Contents](#contents)
