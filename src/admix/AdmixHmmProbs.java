@@ -1,5 +1,8 @@
 /*
  * Copyright 2021 Brian L. Browning
+ * 
+ * Copyright 2023 Genomics plc
+ * 
  *
  * This file is part of the flare program.
  *
@@ -38,10 +41,8 @@ public class AdmixHmmProbs {
     private final double[] invPNoRecT;        // [marker]
     private final double[][] pNoRecTRecRho;   // [ancestry][marker]
     private final double[][] pNoRecTNoRecRho; // [ancestry][marker]
-    private final double[][][] pRecTqMu;      // [ancestry][panel][marker]
-    private final double[][][] rhoFactor;     // [ancestry][panel][marker]
-    private final double[][][] pHapChange;    // [ancestry][panel][marker] - no ancestry change
-    private final double[][][] pNoChange;     // [ancestry][panel][marker]
+    private final double[][] qMu;             // [ancestry][ref-panel]
+    private final double[][] q;               // [ancestry][ref-panel]
 
     /**
      * Constructs a new {@code AdmixHmmUpdater} instance from the specified
@@ -60,11 +61,8 @@ public class AdmixHmmProbs {
         this.pNoRecTRecRho = pNoRecTRecRho(pRecT, pRecRho);
         this.pNoRecTNoRecRho = pNoRecTNoRecRho(pRecT, pRecRho);
 
-        double[][] q = ParamUtils.q(params);
-        this.pRecTqMu = pRecTqMu(params, pRecT);
-        this.rhoFactor = rhoFactor(params, pRecTqMu, pRecT);
-        this.pHapChange = pHapChange(params, q, pRecTqMu, pNoRecTRecRho);
-        this.pNoChange = pNoChange(params, q, pRecTqMu, pNoRecTRecRho, pNoRecTNoRecRho);
+        this.qMu = ParamUtils.qMu(params);
+        this.q = ParamUtils.q(params);
     }
 
     private static double[][] pNoRecTRecRho(double[] pRecT, double[][] pRecRho) {
@@ -110,80 +108,6 @@ public class AdmixHmmProbs {
         return pRecRho;
     }
 
-    private static double [][][] pRecTqMu(ParamsInterface params, double[] pRecT) {
-        int nAnc = params.fixedParams().nAnc();
-        int nRefPanels = params.fixedParams().nRefPanels();
-        double[][][] pRecTqMu = new double[nAnc][nRefPanels][];
-        double[][] qMu = ParamUtils.qMu(params);
-        for (int i=0; i<nAnc; ++i) {
-            for (int j=0; j<nRefPanels; ++j) {
-                double qMuIJ = qMu[i][j];
-                pRecTqMu[i][j] = IntStream.range(0, pRecT.length)
-                        .parallel()
-                        .mapToDouble(m -> pRecT[m]*qMuIJ)
-                        .toArray();
-            }
-        }
-        return pRecTqMu;
-    }
-
-    private static double[][][] rhoFactor(ParamsInterface params,
-            double[][][] pRecTqMu, double[] pRecT) {
-        int nAnc = params.fixedParams().nAnc();
-        int nRefPanels = params.fixedParams().nRefPanels();
-        double[][][] rhoFactor = new double[nAnc][nRefPanels][];
-        for (int i=0; i<nAnc; ++i) {
-            for (int j=0; j<nRefPanels; ++j) {
-                double[] recTQMuIJ = pRecTqMu[i][j];
-                rhoFactor[i][j] = IntStream.range(0, pRecT.length)
-                        .parallel()
-                        .mapToDouble(m ->(recTQMuIJ[m] + 1.0 - pRecT[m]))
-                        .toArray();
-            }
-        }
-        return rhoFactor;
-    }
-
-    private static double[][][] pNoChange(ParamsInterface params, double[][] q,
-            double[][][] pRecTqMu, double[][] pNoRecTRecRho,
-            double[][] pNoRecTNoRecRho) {
-        int nAnc = params.fixedParams().nAnc();
-        int nRefPanels = params.fixedParams().nRefPanels();
-        double[][][] noSwitchProbs = new double[nAnc][nRefPanels][];
-        for (int i=0; i<nAnc; ++i) {
-            double[] pNoRecTRecRhoI = pNoRecTRecRho[i];
-            double[] pNoRecTNoRecRhoI = pNoRecTNoRecRho[i];
-            for (int j=0; j<nRefPanels; ++j) {
-                double[] pRecTqMuIJ = pRecTqMu[i][j];
-                double qIJ = q[i][j];
-                noSwitchProbs[i][j] = IntStream.range(0, pRecTqMuIJ.length)
-                        .parallel()
-                        .mapToDouble(m -> pRecTqMuIJ[m] + pNoRecTRecRhoI[m]*qIJ
-                                + pNoRecTNoRecRhoI[m])
-                        .toArray();
-            }
-        }
-        return noSwitchProbs;
-    }
-
-    private static double[][][] pHapChange(ParamsInterface params,
-            double[][] q, double[][][] pRecTqMu, double[][] pNoRecTRecRho) {
-        int nAnc = params.fixedParams().nAnc();
-        int nRefPanels = params.fixedParams().nRefPanels();
-        double[][][] noSwitchProbs = new double[nAnc][nRefPanels][];
-        for (int i=0; i<nAnc; ++i) {
-            double[] pNoRecTRecRhoI = pNoRecTRecRho[i];
-            for (int j=0; j<nRefPanels; ++j) {
-                double[] pRecTqMuIJ = pRecTqMu[i][j];
-                double qIJ = q[i][j];
-                noSwitchProbs[i][j] = IntStream.range(0, pRecTqMuIJ.length)
-                        .parallel()
-                        .mapToDouble(m -> pRecTqMuIJ[m] + pNoRecTRecRhoI[m]*qIJ)
-                        .toArray();
-            }
-        }
-        return noSwitchProbs;
-    }
 
     /**
      * Returns the analysis parameters for a local ancestry inference analysis.
@@ -269,7 +193,7 @@ public class AdmixHmmProbs {
      * (refPanel >= this.params().fixedParams().nRefPanels())}
      */
     public double pRecTqMu(int marker, int ancestry, int refPanel) {
-        return pRecTqMu[ancestry][refPanel][marker];
+        return pRecT[marker] * qMu[ancestry][refPanel];
     }
 
     /**
@@ -288,7 +212,7 @@ public class AdmixHmmProbs {
      * (refPanel >= this.params().fixedParams().nRefPanels())}
      */
     public double rhoFactor(int marker, int ancestry, int refPanel) {
-        return rhoFactor[ancestry][refPanel][marker];
+        return pRecTqMu(marker, ancestry, refPanel) + 1.0 - pRecT[marker];
     }
 
     /**
@@ -311,7 +235,7 @@ public class AdmixHmmProbs {
      * (refPanel >= this.params().fixedParams().nRefPanels())}
      */
     public double pHapChange(int marker, int ancestry, int refPanel) {
-        return pHapChange[ancestry][refPanel][marker];
+        return pRecTqMu(marker, ancestry, refPanel) + pNoRecTRecRho[ancestry][marker] * q[ancestry][refPanel];
     }
 
     /**
@@ -333,6 +257,7 @@ public class AdmixHmmProbs {
      * (refPanel >= this.params().fixedParams().nRefPanels())}
      */
     public double pNoChange(int marker, int ancestry, int refPanel) {
-        return pNoChange[ancestry][refPanel][marker];
+        return pRecTqMu(marker, ancestry, refPanel) + pNoRecTRecRho[ancestry][marker] * q[ancestry][refPanel]
+                + pNoRecTNoRecRho[ancestry][marker];
     }
 }

@@ -1,5 +1,7 @@
 /*
  * Copyright 2021 Brian L. Browning
+ * 
+ * Copyright 2023 Genomics plc
  *
  * This file is part of the flare program.
  *
@@ -40,7 +42,6 @@ import vcf.RefGT;
  */
 public final class AdmixRecBuilder {
 
-    private final ParamsInterface params;
     private final RefGT targRefGT;
     private final int mStart;
     private final int mEnd;
@@ -68,7 +69,7 @@ public final class AdmixRecBuilder {
      * {@code (start < 0 || end > targRefGT.nMarkers() || end < start)}
      * @throws NullPointerException if {@code par == null || targRefGT == null}
      */
-    public AdmixRecBuilder(ParamsInterface params, RefGT targRefGT, int start,
+    public AdmixRecBuilder(FixedParams fixedParams, RefGT targRefGT, int start,
             int end) {
         if (start<0) {
             throw new IndexOutOfBoundsException(String.valueOf(start));
@@ -76,19 +77,17 @@ public final class AdmixRecBuilder {
         if (end<start || end>targRefGT.nMarkers()) {
             throw new IndexOutOfBoundsException(String.valueOf(end));
         }
-        FixedParams fp = params.fixedParams();
-        int nHaps = (fp.refSamples().size() + fp.targSamples().size())<<1;
+        int nHaps = (fixedParams.refSamples().size() + fixedParams.targSamples().size())<<1;
         if (targRefGT.nHaps() != nHaps) {
             throw new IllegalArgumentException(String.valueOf(targRefGT.nHaps()));
         }
         int mSize = end - start;
-        this.params = params;
         this.targRefGT = targRefGT;
         this.mStart = start;
         this.mEnd = end;
-        this.nTargHaps = (params.fixedParams().targSamples().size() << 1);
-        this.nAnc = params.fixedParams().nAnc();
-        this.printProbs = params.fixedParams().par().probs();
+        this.nTargHaps = (fixedParams.targSamples().size() << 1);
+        this.nAnc = fixedParams.nAnc();
+        this.printProbs = fixedParams.par().probs();
         this.probStart = nAnc*start;
         this.sampleData = new StringBuilder[mSize];
         int charPerHap = printProbs ? nAnc<<3 : nAnc<<1;
@@ -106,16 +105,6 @@ public final class AdmixRecBuilder {
      */
     public RefGT targRefGT() {
         return targRefGT;
-    }
-
-    /**
-     * Returns the analysis parameters for a local ancestry inference
-     * analysis
-     * @return the analysis parameters for a local ancestry inference
-     * analysis
-     */
-    public ParamsInterface params() {
-        return params;
     }
 
     /**

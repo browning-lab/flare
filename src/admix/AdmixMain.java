@@ -1,6 +1,8 @@
 /*
  * Copyright 2021 Brian L. Browning
  *
+ * Copyright 2023 Genomics plc
+ * 
  * This file is part of the flare program.
  *
  * Licensed under the Apache License, Version 2.0 (the License);
@@ -22,8 +24,13 @@ import blbutil.FileUtil;
 import blbutil.Utilities;
 import java.io.File;
 import java.io.PrintWriter;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryPoolMXBean;
+import java.lang.management.MemoryType;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.function.Function;
 
 /**
  * <p>Class {@code AdmixMain} contains the main() method entry point for the
@@ -53,7 +60,7 @@ public class AdmixMain {
      * @throws NullPointerException if {@code args == null}
      */
     public static void main(String[] args) {
-	Locale.setDefault(Locale.US);
+        Locale.setDefault(Locale.US);
         AdmixPar par = getPar(args);
         System.setProperty("java.util.concurrent.ForkJoinPool.common.parallelism",
                 String.valueOf(par.nthreads()));
@@ -129,14 +136,37 @@ public class AdmixMain {
 
                 ParamsInterface params = ParamEstimator.getParams(fixedParams, ibsHaps, log);
                 writeModelFile(params);
+                
+                Function<Integer, ParamsInterface> getSampleParams = null;
+                if (fixedParams.par().gtAncestriesFile() != null) {
+                    GtAncParser gtAncestries = new GtAncParser(
+                        fixedParams.par().gtAncestriesFile(),
+                        fixedParams.targSamples().ids(),
+                        fixedParams.ancIds()
+                    );
+                        
+                    getSampleParams = sampleI -> {
+                        return new ModelFileWithGtAncParams(fixedParams, gtAncestries, sampleI);
+                    };
+                    
+                    AncEstimator.estAncestry(ibsHaps, fixedParams, getSampleParams, globalAncProbs, admixWriter);
+                }
+                else {
+                    AncEstimator.estAncestry(ibsHaps, params, globalAncProbs, admixWriter);
+                }
 
-                AncEstimator.estAncestry(params, ibsHaps, globalAncProbs, admixWriter);
+
                 optChromData = chromIt.nextChrom();
                 while (optChromData.isPresent()) {
                     chromData = optChromData.get();
                     selectedHaps = selectedHaps.removeRefHaps();
                     ibsHaps = new IbsHaps(chromData, selectedHaps);
-                    AncEstimator.estAncestry(params, ibsHaps, globalAncProbs, admixWriter);
+                    if (fixedParams.par().gtAncestriesFile() != null) {
+                        AncEstimator.estAncestry(ibsHaps, fixedParams, getSampleParams, globalAncProbs, admixWriter);
+                    }
+                    else {
+                        AncEstimator.estAncestry(ibsHaps, params, globalAncProbs, admixWriter);
+                    }
                     optChromData = chromIt.nextChrom();
                 }
             }
@@ -287,6 +317,11 @@ public class AdmixMain {
             sb.append("  model             :  ");
             sb.append(par.model());
         }
+        if (par.gtAncestriesFile() != null) {
+            sb.append(Const.nl);
+            sb.append("  gt-ancestries     :  ");
+            sb.append(par.gtAncestriesFile());
+        }
         sb.append(Const.nl);
         sb.append("  em                :  ");
         sb.append(par.em());
@@ -397,6 +432,9 @@ public class AdmixMain {
         sb.append(Const.nl);
         sb.append("End Time            :  ");
         sb.append(Utilities.timeStamp());
+        sb.append(Const.nl);
+        sb.append("Peak Used Memory    :  ");
+        sb.append(String.format("%,d",getPeakUsedSize()));
         return sb.toString();
     }
 
@@ -406,5 +444,18 @@ public class AdmixMain {
         try (PrintWriter out = FileUtil.bgzipPrintWriter(outFile)) {
             globalAncProbs.writeGlobalAncestry(out);
         }
+    }
+    private static long getPeakUsedSize() {
+        List<MemoryPoolMXBean> pools = ManagementFactory.getMemoryPoolMXBeans();
+        long total = 0;
+        for (MemoryPoolMXBean memoryPoolMXBean : pools)
+        {
+            if (memoryPoolMXBean.getType() == MemoryType.HEAP)
+            {
+                long peakUsed = memoryPoolMXBean.getPeakUsage().getUsed();
+                total = total + peakUsed;
+            }
+        }
+        return total;
     }
 }

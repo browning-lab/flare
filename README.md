@@ -157,6 +157,18 @@ in the **model** file with their estimated values.
 The model parameters used in the analysis are reported in the output
 [**.model**](#output-files) file.
 
+* **gt-ancestries=[file]** where **[file]** is a white-space delimited file. The
+first row is a header line containing `sample_id` followed by the names of all
+the ancestries defined in the model file, in the same order as in the model
+file. Following this line, each row starts with a sample identifier followed by
+a whitespace delimited list of proportions of target genotypes in each ancestry.
+All samples to be analysed must be included. Samples to be analysed are defined
+as those appear in **gt=[file]** and **gt-samples=[file]**, but not in
+**gt-samples=^[file]**. Additionally, **em** must be set to **false**, and a
+model file must be provided via **model=[file]**. When analysing the samples,
+**flare** will use parameters specific in the model file, but with the ancestry
+proportions replaced by the sample-specific values.
+
 * **em=[true/false]** specifies whether the number of generations since
 admixture and the proportion of genotypes with each ancestry will
 be estimated using an iterative expectation maximization (EM) algorithm

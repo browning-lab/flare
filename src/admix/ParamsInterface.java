@@ -2,7 +2,7 @@ package admix;
 
 /**
  * <p>Interface {@code ParamsInterface} represents the analysis parameters
- * for a local ancestry inference analysis.</p>
+ * for a local ancestry inference analysis for a given sample.</p>
  *
  * <p>Implementations of interface {@code ParamsInterface} are required to be
  * immutable.</p>
@@ -26,7 +26,7 @@ public interface ParamsInterface {
     /**
      * Returns  an array of length {@code this.fixedParams().nAnc()}
      * whose {@code i}-th entry is the proportion of ancestry {@code i}
-     * in the target samples.
+     * in the target sample's population.
      * @return an array of length {@code this.fixedParams().nAnc()}
      * whose {@code i}-th entry is the proportion of ancestry {@code i}
      * in the target samples

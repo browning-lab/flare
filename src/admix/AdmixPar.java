@@ -1,5 +1,7 @@
 /*
  * Copyright 2021 Brian L. Browning
+ * 
+ * Copyright 2023 Genomics plc
  *
  * This file is part of the flare program.
  *
@@ -50,6 +52,7 @@ public final class AdmixPar {
     private final boolean probs;
     private final float gen;
     private final File model;
+    private final File gtAncestriesFile;
     private final boolean em;
     private final int nthreads;
     private final long seed;
@@ -134,13 +137,17 @@ public final class AdmixPar {
         gen = Validate.floatArg("gen", argsMap, false, DEF_GEN, 1, IMAX);
         model = Validate.getFile(Validate.stringArg("model", argsMap, false,
                 null, null));
+        gtAncestriesFile = Validate.getFile(
+                Validate.stringArg("gt-ancestries", argsMap, false, null, null));
         em = Validate.booleanArg("em", argsMap, false, DEF_EM);
         nthreads = Validate.intArg("nthreads", argsMap, false, DEF_THREADS, 1, IMAX);
         seed = Validate.longArg("seed", argsMap, false, DEF_SEED, LMIN, LMAX);
         gt_samples = Validate.stringArg("gt-samples", argsMap, false, null, null);
         gtSamplesFile = AdmixPar.gtSamplesFile(gt_samples);
         excludemarkers = Validate.getFile(
-                Validate.stringArg("excludemarkers", argsMap, false, null, null));
+            Validate.stringArg("excludemarkers", argsMap, false, null, null));
+            
+        this.validateGtAncestriesModelEm();
 
         // Undocumented parameters
         panel_weight = Validate.floatArg("panel-weight", argsMap, false, DEF_PANEL_WEIGHT, FMIN, 1.0f);
@@ -156,6 +163,17 @@ public final class AdmixPar {
         min_mu = Validate.floatArg("min-mu", argsMap, false, DEF_MIN_MU, 0.0f, 1.0f);
         debug = Validate.booleanArg("debug", argsMap, false, DEF_DEBUG);
         Validate.confirmEmptyMap(argsMap);
+    }
+
+    private void validateGtAncestriesModelEm() throws IllegalArgumentException {
+        if (gtAncestriesFile != null) {
+            if (em) {
+                throw new IllegalArgumentException("when gt-ancestries is set, em must be false.");
+            }
+            if (model == null) {
+                throw new IllegalArgumentException("when gt-ancestries is set, a model file must be provided.");
+            }
+        }
     }
 
     private static File gtSamplesFile(String gtSamples) {
@@ -179,7 +197,7 @@ public final class AdmixPar {
         File file = new File(filename);
         if (file.equals(gt) || file.equals(ref) || file.equals(map)
                 || file.equals(gtSamplesFile) || file.equals(excludemarkers)
-                || file.equals(ref_panel) || file.equals(anc_panel)) {
+                || file.equals(ref_panel) || file.equals(anc_panel) || file.equals(gtAncestriesFile)) {
             String err = "An output file has the same name as an input file";
             String info = Const.nl + "Error      :  " + err
                     + Const.nl     + "Filename   :  " + file;
@@ -213,17 +231,18 @@ public final class AdmixPar {
 
                 + "Optional Parameters:" + nl
 //                + "  anc-panel=<file with ancestry to panels map>         (optional)" + nl
-                + "  array=<genotypes are from a SNP array: true/false>   (default: " + DEF_ARRAY + ")" + nl
-                + "  min-maf=<minimum MAF in reference VCF file>          (default: " + DEF_MIN_MAF + ")" + nl
-                + "  min-mac=<minimum MAC in reference VCF file>          (default: " + DEF_MIN_MAC + ")" + nl
-                + "  probs=<report ancestry probs: true/false>            (default: " + DEF_PROBS + nl
-                + "  gen=<number of generations since admixture>          (default: " + DEF_GEN + ")" + nl
-                + "  model=<file with model parameters>                   (optional)" + nl
-                + "  em=<estimate model parameters using EM: true/false>  (default: " + DEF_EM + ")" + nl
-                + "  nthreads=<number of computational threads>           (default: all CPU cores)" + nl
-                + "  seed=<seed for random number generations>            (default: " + DEF_SEED + ")" + nl
-                + "  gt-samples=<file with sample IDs to analyze>         (optional)" + nl
-                + "  excludemarkers=<file with markers to exclude>        (optional)" + nl;
+                + "  array=<genotypes are from a SNP array: true/false>         (default: " + DEF_ARRAY + ")" + nl
+                + "  min-maf=<minimum MAF in reference VCF file>                (default: " + DEF_MIN_MAF + ")" + nl
+                + "  min-mac=<minimum MAC in reference VCF file>                (default: " + DEF_MIN_MAC + ")" + nl
+                + "  probs=<report ancestry probs: true/false>                  (default: " + DEF_PROBS + nl
+                + "  gen=<number of generations since admixture>                (default: " + DEF_GEN + ")" + nl
+                + "  model=<file with model parameters>                         (optional)" + nl
+                + "  gt-ancestries=<file with ancestry proportions of samples>  (optional)" + nl
+                + "  em=<estimate model parameters using EM: true/false>        (default: " + DEF_EM + ")" + nl
+                + "  nthreads=<number of computational threads>                 (default: all CPU cores)" + nl
+                + "  seed=<seed for random number generations>                  (default: " + DEF_SEED + ")" + nl
+                + "  gt-samples=<file with sample IDs to analyze>               (optional)" + nl
+                + "  excludemarkers=<file with markers to exclude>              (optional)" + nl;
     }
 
     // Required parameters
@@ -326,6 +345,17 @@ public final class AdmixPar {
      */
     public File model() {
         return model;
+    }
+
+    /**
+     * Returns the file specified with the gt-ancestries parameter or {@code null}
+     * if no gt-ancestries parameter was specified.
+
+     * @return the file specified with the gt-ancestries parameter or {@code null}
+     * if no gt-ancestries parameter was specified.
+     */
+    public File gtAncestriesFile() {
+        return this.gtAncestriesFile;
     }
 
     /**
