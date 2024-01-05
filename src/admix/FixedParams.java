@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Brian L. Browning
+ * Copyright 2021-2023 Brian L. Browning
  *
  * This file is part of the flare program.
  *
@@ -17,6 +17,7 @@
  */
 package admix;
 
+import blbutil.Const;
 import blbutil.FileIt;
 import blbutil.InputIt;
 import blbutil.StringUtil;
@@ -24,6 +25,7 @@ import blbutil.Utilities;
 import ints.IntArray;
 import ints.WrappedIntArray;
 import java.io.File;
+import java.util.Arrays;
 import java.util.stream.IntStream;
 import vcf.Samples;
 
@@ -45,6 +47,7 @@ public class FixedParams {
     private final IntArray nPanelHaps;
     private final String[] ancIds;
     private final IntArray[] ancToPanels;
+    private final GlobalAncestries globalAncestries;
 
     /**
      * Returns a {@code FixedParams} instance that is constructed from the
@@ -59,15 +62,88 @@ public class FixedParams {
      */
     public static FixedParams create(AdmixPar par, Samples refSamples,
             Samples targSamples) {
-        if (par.model()!=null) {
+        if (par.model()==null) {
+            return new FixedParams(par, refSamples, targSamples);
+        }
+        else {
             String[] lines = readAncAndPanelLines(par.model());
             String[] ancIds = StringUtil.getFields(lines[0]);
             String[] refPanelIds = StringUtil.getFields(lines[1]);
-            return new FixedParams(par, refSamples, targSamples, refPanelIds, ancIds);
+            return new FixedParams(par, refSamples, targSamples, ancIds,
+                    refPanelIds);
+        }
+    }
+
+    /**
+     * Constructs and returns an {@code FixedParams} instance for the
+     * specified data. The Java virtual machine will exit with an error
+     * message if an inconsistency in the input data is detected.
+     * @param par the command line parameters
+     * @param refSamples the list of reference samples
+     * @param targSamples the list of target samples
+     * @param refSampleIds the list of reference sample identifiers
+     * @param ancIds the list of ancestry identifiers
+     * @param refPanelIds the list of reference panel identifiers
+     * @throws NullPointerException if any parameter is {@code null}
+     */
+    private FixedParams(AdmixPar par, Samples refSamples, Samples targSamples,
+            String[] ancIds, String[] refPanelIds) {
+        this.par = par;
+        this.refSamples = refSamples;
+        this.targSamples = targSamples;
+        String[] sampleToRefPanel = AdmixUtils.sampleMap(refSamples, par.ref_panel());
+        this.refPanelIds = refPanelIds.clone();
+        AncPanelFile.confirmMoreThanOneAncestry(ancIds);
+        AdmixRefPanels.checkRefPanelIds(refSamples, sampleToRefPanel, refPanelIds);
+        this.refHapToPanel = AdmixRefPanels.hapToPanel(sampleToRefPanel, refPanelIds);
+        this.nPanelHaps = AdmixRefPanels.nPanelHaps(refHapToPanel, refPanelIds.length);
+        this.ancIds = ancIds;
+        if (par.anc_panel()==null) {
+            this.ancToPanels = IntStream.range(0, refPanelIds.length)
+                .mapToObj(j -> new WrappedIntArray(new int[]{j}))
+                .toArray(IntArray[]::new);
         }
         else {
-            return new FixedParams(par, refSamples, targSamples);
+            AncPanelFile ancPanels = new AncPanelFile(refPanelIds, par.anc_panel());
+            String[] ancPanelAncIds = ancPanels.ancIds();
+            checkAncestries(par, ancIds, ancPanelAncIds);
+            this.ancToPanels = ancPanels.ancToRefPanels();
         }
+        this.globalAncestries = par.gt_ancestries()==null
+                ? new GlobalAncestries(ancIds.length, targSamples.size())
+                : new GlobalAncestries(par.gt_ancestries(), ancIds, targSamples.ids());
+    }
+
+
+    private FixedParams(AdmixPar par, Samples refSamples, Samples targSamples,
+            String[] ancIds) {
+        if (targSamples == null) {
+            throw new NullPointerException(Samples.class.toString());
+        }
+        this.par = par;
+        this.refSamples = refSamples;
+        this.targSamples = targSamples;
+        String[] refSampToPanelId = AdmixUtils.sampleMap(refSamples, par.ref_panel());
+        this.refPanelIds = AdmixRefPanels.indexPanels(refSampToPanelId);
+        this.refHapToPanel = AdmixRefPanels.hapToPanel(refSampToPanelId,
+                refPanelIds);
+        this.ancIds = ancIds.clone();
+        this.nPanelHaps = AdmixRefPanels.nPanelHaps(refHapToPanel,
+                refPanelIds.length);
+        if (par.anc_panel()==null) {
+            this.ancToPanels = IntStream.range(0, refPanelIds.length)
+                .mapToObj(j -> new WrappedIntArray(new int[]{j}))
+                .toArray(IntArray[]::new);
+        }
+        else {
+            AncPanelFile ancPanels = new AncPanelFile(refPanelIds, par.anc_panel());
+            String[] ancPanelAncIds = ancPanels.ancIds();
+            checkAncestries(par, ancIds, ancPanelAncIds);
+            this.ancToPanels = ancPanels.ancToRefPanels();
+        }
+        this.globalAncestries = par.gt_ancestries()==null
+                ? new GlobalAncestries(ancIds.length, targSamples.size())
+                : new GlobalAncestries(par.gt_ancestries(), ancIds, targSamples.ids());
     }
 
     private FixedParams(AdmixPar par, Samples refSamples, Samples targSamples) {
@@ -94,42 +170,9 @@ public class FixedParams {
             this.ancIds = ancPanels.ancIds();
             this.ancToPanels = ancPanels.ancToRefPanels();
         }
-    }
-
-    /**
-     * Constructs and returns an {@code FixedParams} instance for the
-     * specified data. The Java virtual machine will exit with an error
-     * message if an inconsistency in the input data is detected.
-     * @param par the command line parameters
-     * @param refSamples the list of reference samples
-     * @param targSamples the list of target samples
-     * @param refSampleIds the list of reference sample identifiers
-     * @param refPanelIds the list of reference panel identifiers
-     * @param ancIds the list of ancestry identifiers
-     * @throws NullPointerException if any parameter is {@code null}
-     */
-    private FixedParams(AdmixPar par, Samples refSamples, Samples targSamples,
-            String[] refPanelIds, String[] ancIds) {
-        this.par = par;
-        this.refSamples = refSamples;
-        this.targSamples = targSamples;
-        String[] sampleToRefPanel = AdmixUtils.sampleMap(refSamples, par.ref_panel());
-        this.refPanelIds = refPanelIds.clone();
-        AncPanelFile.confirmMoreThanOneAncestry(ancIds);
-        AdmixRefPanels.checkRefPanelIds(refSamples, sampleToRefPanel, refPanelIds);
-        this.refHapToPanel = AdmixRefPanels.hapToPanel(sampleToRefPanel, refPanelIds);
-        this.nPanelHaps = AdmixRefPanels.nPanelHaps(refHapToPanel, refPanelIds.length);
-        if (par.anc_panel()==null) {
-            this.ancIds = ancIds;
-            this.ancToPanels = IntStream.range(0, refPanelIds.length)
-                .mapToObj(j -> new WrappedIntArray(new int[]{j}))
-                .toArray(IntArray[]::new);
-        }
-        else {
-            AncPanelFile ancPanels = new AncPanelFile(refPanelIds, par.anc_panel());
-            this.ancIds = ancPanels.ancIds();
-            this.ancToPanels = ancPanels.ancToRefPanels();
-        }
+        this.globalAncestries = par.gt_ancestries()==null
+                ? new GlobalAncestries(ancIds.length, targSamples.size())
+                : new GlobalAncestries(par.gt_ancestries(), ancIds, targSamples.ids());
     }
 
     private static String[] readAncAndPanelLines(File modelFile) {
@@ -268,5 +311,39 @@ public class FixedParams {
      */
     public IntArray ancPanels(int anc) {
         return ancToPanels[anc];
+    }
+
+    /**
+     * Returns an array with length
+     * {@code this.targSamples().size()} whose {@code j}-th
+     * entry is an array with global ancestry proportions for the {@code j}-th
+     * target sample. The contract for this method is undefined if the
+     * the elements of the specified {@code defaultAncProbs} array are not
+     * finite, non-negative numbers.
+     * @param defaultAncProbs the global ancestry proportions for samples
+     * that do not have user-specified global ancestry proportions.
+     * @return the ancestry proportions for target samples
+     * @throws NullPointerException if {@code defaultAncProbs == null}
+     * @throws IllegalArgumentException if
+     * {@code defaultAncProbs.length != this.fixedParams().nAnc()}
+     */
+    public double[][] globalAncestries(double[] defaultAncProbs) {
+        return globalAncestries.globalAncestries(defaultAncProbs);
+    }
+
+    private void checkAncestries(AdmixPar par, String[] oldAnc, String[] newAnc) {
+        if (Arrays.equals(oldAnc, newAnc)==false) {
+            String oldFile = par.model()!=null
+                    ? "Model file:         " + par.model()
+                    : "Gt-ancestries file: " + par.gtSamplesFile();
+            StringBuilder sb = new StringBuilder(1<<9);
+            sb.append("Error:              Inconsistent ancestry lists");
+            sb.append(Const.nl);
+            sb.append(oldFile);
+            sb.append(Const.nl);
+            sb.append("anc-panel file:     ");
+            sb.append(par.anc_panel());
+            Utilities.exit(sb.toString());
+        }
     }
 }

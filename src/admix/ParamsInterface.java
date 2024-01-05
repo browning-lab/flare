@@ -31,7 +31,7 @@ public interface ParamsInterface {
      * whose {@code i}-th entry is the proportion of ancestry {@code i}
      * in the target samples
      */
-    double[] mu();
+    double[] studyMu();
 
     /**
      * Returns the copying probability for the specified reference panel

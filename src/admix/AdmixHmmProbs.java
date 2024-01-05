@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Brian L. Browning
+ * Copyright 2021-2023 Brian L. Browning
  *
  * This file is part of the flare program.
  *
@@ -38,10 +38,9 @@ public class AdmixHmmProbs {
     private final double[] invPNoRecT;        // [marker]
     private final double[][] pNoRecTRecRho;   // [ancestry][marker]
     private final double[][] pNoRecTNoRecRho; // [ancestry][marker]
-    private final double[][][] pRecTqMu;      // [ancestry][panel][marker]
-    private final double[][][] rhoFactor;     // [ancestry][panel][marker]
-    private final double[][][] pHapChange;    // [ancestry][panel][marker] - no ancestry change
-    private final double[][][] pNoChange;     // [ancestry][panel][marker]
+    private final double[][] q;
+    private final double[] studyMu;
+    private final double[][] sampleMu;        // [targSample][ancestry]
 
     /**
      * Constructs a new {@code AdmixHmmUpdater} instance from the specified
@@ -60,11 +59,9 @@ public class AdmixHmmProbs {
         this.pNoRecTRecRho = pNoRecTRecRho(pRecT, pRecRho);
         this.pNoRecTNoRecRho = pNoRecTNoRecRho(pRecT, pRecRho);
 
-        double[][] q = ParamUtils.q(params);
-        this.pRecTqMu = pRecTqMu(params, pRecT);
-        this.rhoFactor = rhoFactor(params, pRecTqMu, pRecT);
-        this.pHapChange = pHapChange(params, q, pRecTqMu, pNoRecTRecRho);
-        this.pNoChange = pNoChange(params, q, pRecTqMu, pNoRecTRecRho, pNoRecTNoRecRho);
+        this.q = ParamUtils.q(params);
+        this.studyMu = params.studyMu();
+        this.sampleMu = params.fixedParams().globalAncestries(studyMu);
     }
 
     private static double[][] pNoRecTRecRho(double[] pRecT, double[][] pRecRho) {
@@ -110,81 +107,6 @@ public class AdmixHmmProbs {
         return pRecRho;
     }
 
-    private static double [][][] pRecTqMu(ParamsInterface params, double[] pRecT) {
-        int nAnc = params.fixedParams().nAnc();
-        int nRefPanels = params.fixedParams().nRefPanels();
-        double[][][] pRecTqMu = new double[nAnc][nRefPanels][];
-        double[][] qMu = ParamUtils.qMu(params);
-        for (int i=0; i<nAnc; ++i) {
-            for (int j=0; j<nRefPanels; ++j) {
-                double qMuIJ = qMu[i][j];
-                pRecTqMu[i][j] = IntStream.range(0, pRecT.length)
-                        .parallel()
-                        .mapToDouble(m -> pRecT[m]*qMuIJ)
-                        .toArray();
-            }
-        }
-        return pRecTqMu;
-    }
-
-    private static double[][][] rhoFactor(ParamsInterface params,
-            double[][][] pRecTqMu, double[] pRecT) {
-        int nAnc = params.fixedParams().nAnc();
-        int nRefPanels = params.fixedParams().nRefPanels();
-        double[][][] rhoFactor = new double[nAnc][nRefPanels][];
-        for (int i=0; i<nAnc; ++i) {
-            for (int j=0; j<nRefPanels; ++j) {
-                double[] recTQMuIJ = pRecTqMu[i][j];
-                rhoFactor[i][j] = IntStream.range(0, pRecT.length)
-                        .parallel()
-                        .mapToDouble(m ->(recTQMuIJ[m] + 1.0 - pRecT[m]))
-                        .toArray();
-            }
-        }
-        return rhoFactor;
-    }
-
-    private static double[][][] pNoChange(ParamsInterface params, double[][] q,
-            double[][][] pRecTqMu, double[][] pNoRecTRecRho,
-            double[][] pNoRecTNoRecRho) {
-        int nAnc = params.fixedParams().nAnc();
-        int nRefPanels = params.fixedParams().nRefPanels();
-        double[][][] noSwitchProbs = new double[nAnc][nRefPanels][];
-        for (int i=0; i<nAnc; ++i) {
-            double[] pNoRecTRecRhoI = pNoRecTRecRho[i];
-            double[] pNoRecTNoRecRhoI = pNoRecTNoRecRho[i];
-            for (int j=0; j<nRefPanels; ++j) {
-                double[] pRecTqMuIJ = pRecTqMu[i][j];
-                double qIJ = q[i][j];
-                noSwitchProbs[i][j] = IntStream.range(0, pRecTqMuIJ.length)
-                        .parallel()
-                        .mapToDouble(m -> pRecTqMuIJ[m] + pNoRecTRecRhoI[m]*qIJ
-                                + pNoRecTNoRecRhoI[m])
-                        .toArray();
-            }
-        }
-        return noSwitchProbs;
-    }
-
-    private static double[][][] pHapChange(ParamsInterface params,
-            double[][] q, double[][][] pRecTqMu, double[][] pNoRecTRecRho) {
-        int nAnc = params.fixedParams().nAnc();
-        int nRefPanels = params.fixedParams().nRefPanels();
-        double[][][] noSwitchProbs = new double[nAnc][nRefPanels][];
-        for (int i=0; i<nAnc; ++i) {
-            double[] pNoRecTRecRhoI = pNoRecTRecRho[i];
-            for (int j=0; j<nRefPanels; ++j) {
-                double[] pRecTqMuIJ = pRecTqMu[i][j];
-                double qIJ = q[i][j];
-                noSwitchProbs[i][j] = IntStream.range(0, pRecTqMuIJ.length)
-                        .parallel()
-                        .mapToDouble(m -> pRecTqMuIJ[m] + pNoRecTRecRhoI[m]*qIJ)
-                        .toArray();
-            }
-        }
-        return noSwitchProbs;
-    }
-
     /**
      * Returns the analysis parameters for a local ancestry inference analysis.
      * @return the analysis parameters for a local ancestry inference analysis
@@ -202,23 +124,122 @@ public class AdmixHmmProbs {
     }
 
     /**
-     * Returns the probability of a post-admixture switch to a random
-     * reference haplotype in the genomic interval between the marker preceding
-     * the specified marker and the specified marker.
-     * @param marker marker index
-     * @return the probability of a post-admixture switch to a random reference
-     * haplotype
-     * @throws IndexOutOfBoundsException if
-     * {@code marker < 0 || marker >= this.nMarkers()}
+     * Returns the number of target samples.
+     * @return the number of target samples
      */
-    public double pRecT(int marker) {
-        return pRecT[marker];
+    public int nTargSamples() {
+        return params.fixedParams().targSamples().size();
     }
 
     /**
-     * Returns {@code 1.0/(1.0 - this.pRecT(marker))}
+     * Returns the number of ancestries.
+     * @return the number of ancestries
+     */
+    public int nAnc() {
+        return params.fixedParams().nAnc();
+    }
+
+    /**
+     * Returns the study ancestry proportion for the specified ancestry
+     * @param ancestry an ancestry index
+     * @return the ancestry proportion for the specified sample and ancestry
+     * @throws IndexOutOfBoundsException if
+     * {@code (ancestry < 0 || ancestry >= this.nAnc())}
+     */
+    public double studyMu(int ancestry) {
+        return studyMu[ancestry];
+    }
+
+    /**
+     * Returns the ancestry proportion for the specified sample and ancestry
+     * @param sample a sample index
+     * @param ancestry an ancestry index
+     * @return the ancestry proportion for the specified sample and ancestry
+     * @throws IndexOutOfBoundsException if
+     * {@code (sample < 0 || sample >= this.nTargSamples())}
+     * @throws IndexOutOfBoundsException if
+     * {@code (ancestry < 0 || ancestry >= this.nAnc())}
+     */
+    public double sampleMu(int sample, int ancestry) {
+        return sampleMu[sample][ancestry];
+    }
+
+    /**
+     * Set shift parameter for each reference panel for the HMM forward update
+     * using per-sample ancestry proportions.
+     * @param targHap the target haplotype
+     * @param marker the marker
+     * @param ancestry the ancestry
+     * @param pAnc the state probability sum for each ancestry at the previous
+     * marker
+     * @param shift the shift parameter for each reference panel in the
+     * HMM forward update
+     * @throws IndexOutOfBoundsException if
+     * {@code (targHap < 0) || (targHap >=  2*this.params().fixedParams().targSamples().size())}
+     * @throws IndexOutOfBoundsException if
+     * {@code (marker < 0) || (marker >= this.nMarkers())}
+     * @throws IndexOutOfBoundsException if
+     * {@code (ancestry < 0) || (ancestry >= this.params().fixedParams().nAnc())}
+     * @throws IndexOutOfBoundsException if
+     * {@code (refPanel < 0) || (refPanel >= this.params().fixedParams().nRefPanels())}
+     * @throws IndexOutOfBoundsException if {@code refPanel >= shift.length}
+     * @throws NullPointerException if {@code shift == null}
+     */
+    public void setFwdShift(int targHap, int marker, int ancestry,
+            double pAnc, double[] shift) {
+        int sample = targHap >> 1;
+        for (int j=0; j<shift.length; ++j) {
+            shift[j] = pRecT[marker]*sampleMu[sample][ancestry]*q[ancestry][j]
+                    + pNoRecTRecRho[ancestry][marker]*q[ancestry][j]*pAnc;
+        }
+    }
+
+    /**
+     * Set shift parameter for each reference panel for the HMM forward update
+     * using study ancestry proportions.
+     * @param marker the marker
+     * @param ancestry the ancestry
+     * @param pAnc the normalized state probability sum for each ancestry
+     * at the previous marker
+     * @param shift the shift parameter when updating HMM state probabilities
+     * @throws IndexOutOfBoundsException if
+     * {@code (marker < 0) || (marker >= this.nMarkers())}
+     * @throws IndexOutOfBoundsException if
+     * {@code (ancestry < 0) || (ancestry >= this.params().fixedParams().nAnc())}
+     * @throws IndexOutOfBoundsException if
+     * {@code (refPanel < 0) || (refPanel >= this.params().fixedParams().nRefPanels())}
+     * @throws IndexOutOfBoundsException if {@code refPanel >= shift.length}
+     * @throws NullPointerException if {@code shift == null}
+     */
+    public void setFwdShift(int marker, int ancestry, double pAnc, double[] shift) {
+        for (int j=0; j<shift.length; ++j) {
+            shift[j] = pRecT[marker]*studyMu[ancestry]*q[ancestry][j]
+                    + pNoRecTRecRho[ancestry][marker]*q[ancestry][j]*pAnc;
+        }
+    }
+
+    /**
+     * Returns the shift parameter for the HMM backward update.
+     * @param marker the marker
+     * @param ancestry the ancestry
+     * @param bwdAncSum an ancestry-dependent sum
+     * @param bwdSum the sum of {@code bwdAncSum} over all ancestries
+     * @return the shift parameter for the HMM backward update
+     * @throws IndexOutOfBoundsException if
+     * {@code (marker < 0) || (marker >= this.nMarkers())}
+     * @throws IndexOutOfBoundsException if
+     * {@code (ancestry < 0) || (ancestry >= this.params().fixedParams().nAnc())}
+     */
+    public double bwdShift(int marker, int ancestry, double bwdAncSum, double bwdSum) {
+        return pRecT[marker]*bwdSum + pNoRecTRecRho[ancestry][marker]*bwdAncSum;
+    }
+
+    /**
+     * Returns the inverse of the probability of no recombination between
+     * the preceding marker and the current marker since admixture.
      * @param marker a marker index
-     * @return {@code 1.0/(1.0 - this.pRecT(marker))}
+     * @return the inverse of the probability of no recombination between
+     * the preceding marker and the current marker since admixture
      * @throws IndexOutOfBoundsException if
      * {@code marker < 0 || marker >= this.nMarkers()}
      */
@@ -227,24 +248,12 @@ public class AdmixHmmProbs {
     }
 
     /**
-     * Returns {@code (1.0 - this.pRecT(marker)) * this.pRecRho(marker, ancestry)}
+     * Returns the probability of no recombination between the preceding marker
+     * and the current marker
      * @param marker a marker index
      * @param ancestry an ancestry index
-     * @return {@code (1.0 - this.pRecT(marker)) * this.pRecRho(marker, ancestry)}
-     * @throws IndexOutOfBoundsException if
-     * {@code marker < 0 || marker >= this.nMarkers()}
-     * @throws IndexOutOfBoundsException if
-     * {@code (ancestry < 0) || (ancestry >= this.params().fixedParams().nAnc())}
-     */
-    public double pNoRecTRecRho(int marker, int ancestry) {
-        return pNoRecTRecRho[ancestry][marker];
-    }
-
-    /**
-     * Returns {@code (1.0 - this.pRecT(marker)) * (1.0 - this.pRecRho(marker, ancestry))}
-     * @param marker a marker index
-     * @param ancestry an ancestry index
-     * @return {@code (1.0 - this.pRecT(marker)) * (1.0 - this.pRecRho(marker, ancestry))}
+     * @return the probability of no recombination between the preceding marker
+     * and the current marker
      * @throws IndexOutOfBoundsException if
      * {@code marker < 0 || marker >= this.nMarkers()}
      * @throws IndexOutOfBoundsException if
@@ -255,40 +264,25 @@ public class AdmixHmmProbs {
     }
 
     /**
-     * Returns {@code this.pRecT(marker) * this.params().qMu(ancestry, refPanel))}
+     * Returns a factor used to estimate the intensity parameter for the
+     * exponential distribution of the probability of recombination
+     * prior to admixture.
      * @param marker a marker index
      * @param ancestry an ancestry index
      * @param refPanel a reference panel index
-     * @return {@code this.pRecT(marker) * this.params().qMu(ancestry, refPanel))}
+     * @return a factor used to estimate the intensity parameter for the
+     * exponential distribution of the probability of recombination
+     * prior to admixture
      * @throws IndexOutOfBoundsException if
      * {@code marker < 0 || marker >= this.nMarkers()}
      * @throws IndexOutOfBoundsException if
      * {@code (ancestry < 0) || (ancestry >= this.params().fixedParams().nAnc())}
      * @throws IndexOutOfBoundsException if
-     * {@code (refPanel < 0) || 
-     * (refPanel >= this.params().fixedParams().nRefPanels())}
-     */
-    public double pRecTqMu(int marker, int ancestry, int refPanel) {
-        return pRecTqMu[ancestry][refPanel][marker];
-    }
-
-    /**
-     * Returns
-     * {@code this.pRecTqMu(marker, ancestry, refPanel) + 1.0 - this.pRecT(marker)}
-     * @param marker a marker index
-     * @param ancestry an ancestry index
-     * @param refPanel a reference panel index
-     * @return {@code this.pRecTqMu(marker, ancestry, refPanel) + 1.0 - this.pRecT(marker)}
-     * @throws IndexOutOfBoundsException if
-     * {@code marker < 0 || marker >= this.nMarkers()}
-     * @throws IndexOutOfBoundsException if
-     * {@code (ancestry < 0) || (ancestry >= this.params().fixedParams().nAnc())}
-     * @throws IndexOutOfBoundsException if
-     * {@code (refPanel < 0) || 
+     * {@code (refPanel < 0) ||
      * (refPanel >= this.params().fixedParams().nRefPanels())}
      */
     public double rhoFactor(int marker, int ancestry, int refPanel) {
-        return rhoFactor[ancestry][refPanel][marker];
+        return  pRecT[marker]*studyMu[ancestry]*q[ancestry][refPanel] + 1.0 - pRecT[marker];
     }
 
     /**
@@ -307,11 +301,12 @@ public class AdmixHmmProbs {
      * @throws IndexOutOfBoundsException if
      * {@code (ancestry < 0) || (ancestry >= this.params().fixedParams().nAnc())}
      * @throws IndexOutOfBoundsException if
-     * {@code (refPanel < 0) || 
+     * {@code (refPanel < 0) ||
      * (refPanel >= this.params().fixedParams().nRefPanels())}
      */
     public double pHapChange(int marker, int ancestry, int refPanel) {
-        return pHapChange[ancestry][refPanel][marker];
+        return pRecT[marker]*studyMu[ancestry]*q[ancestry][refPanel]
+                + pNoRecTRecRho[ancestry][marker]*q[ancestry][refPanel];
     }
 
     /**
@@ -329,10 +324,12 @@ public class AdmixHmmProbs {
      * @throws IndexOutOfBoundsException if
      * {@code (ancestry < 0) || (ancestry >= this.params().fixedParams().nAnc())}
      * @throws IndexOutOfBoundsException if
-     * {@code (refPanel < 0) || 
+     * {@code (refPanel < 0) ||
      * (refPanel >= this.params().fixedParams().nRefPanels())}
      */
     public double pNoChange(int marker, int ancestry, int refPanel) {
-        return pNoChange[ancestry][refPanel][marker];
+        return pRecT[marker]*studyMu[ancestry]*q[ancestry][refPanel]
+                + pNoRecTRecRho[ancestry][marker]*q[ancestry][refPanel]
+                + pNoRecTNoRecRho[ancestry][marker];
     }
 }

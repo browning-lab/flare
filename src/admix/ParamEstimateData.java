@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Brian L. Browning
+ * Copyright 2021-2023 Brian L. Browning
  *
  * This file is part of the flare program.
  *
@@ -173,7 +173,7 @@ public class ParamEstimateData {
             sum += mu[i];
         }
         if (sum==0.0) {
-            return prevParams.mu();
+            return prevParams.studyMu();
         }
         else {
             AdmixUtils.scale(mu, 1.0/sum);

@@ -27,7 +27,7 @@ public class ParamUtils {
      * @throws NullPointerException if {@code params == null}
      */
     public static double[] inv1Mmu(ParamsInterface params) {
-        double[] modMu = params.mu();
+        double[] modMu = params.studyMu();
         for (int i=0; i<modMu.length; ++i) {
             double den = 1.0 - modMu[i];
             modMu[i] = den==0.0 ? 0.0 : 1.0/den;
@@ -77,7 +77,7 @@ public class ParamUtils {
    public  static double[][] qMu(ParamsInterface params) {
         IntArray nPanelHaps = params.fixedParams().nPanelHaps();
         double[][] modP = params.p();
-        double[] mu = params.mu();
+        double[] mu = params.studyMu();
         double[] invNPanelHaps = new double[nPanelHaps.size()];
         for (int j=0, n=nPanelHaps.size(); j<n; ++j) {
             invNPanelHaps[j] = 1.0/nPanelHaps.get(j);
@@ -172,7 +172,7 @@ public class ParamUtils {
         sb.append(Const.nl);
         sb.append("# mu[i]: proportion of target genotypes with ancestry i");
         sb.append(Const.nl);
-        AdmixUtils.appendLineWithVector(sb, params.mu());
+        AdmixUtils.appendLineWithVector(sb, params.studyMu());
         sb.append(Const.nl);
         sb.append(Const.nl);
         sb.append("# p[i][j]: probability that a model state haplotype is in reference panel j");

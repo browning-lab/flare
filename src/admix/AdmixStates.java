@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Brian L. Browning
+ * Copyright 2021-2023 Brian L. Browning
  *
  * This file is part of the flare program.
  *
@@ -51,7 +51,7 @@ public final class AdmixStates {
     private final int maxStates;
     private final int minSteps;
 
-    private final IntIntMap hapToStep;
+    private final IntIntMap hapToLastIbsStep;
     private final PriorityQueue<CompHapSegment> q;
     private final IntList[] compHapHap;
     private final IntList[] compHapEnd;
@@ -88,7 +88,7 @@ public final class AdmixStates {
         this.maxStates = Math.min(chromData.nRefHaps(), par.states());
         this.minSteps = (int) Math.ceil(par.ibs_recycle()/par.ibs_step());
 
-        this.hapToStep = new IntIntMap(maxStates);
+        this.hapToLastIbsStep = new IntIntMap(maxStates);
         this.q = new PriorityQueue<>(maxStates);
         this.compHapHap = intLists(maxStates);
         this.compHapEnd = intLists(maxStates);
@@ -171,7 +171,7 @@ public final class AdmixStates {
     }
 
     private void initializeFields() {
-        hapToStep.clear();
+        hapToLastIbsStep.clear();
         for (int j=0, n=q.size(); j<n; ++j) {
             compHapHap[j].clear();
             compHapEnd[j].clear();
@@ -179,45 +179,61 @@ public final class AdmixStates {
         q.clear();
     }
 
-    void addIbsHap(int hap, int step) {
-        if (hapToStep.get(hap, NIL)==NIL) { // hap not currently in q
+    void addIbsHap(int hap, int ibsStep) {
+        if (hapToLastIbsStep.get(hap, NIL)==NIL) { // hap not currently in q
             updateHeadOfQ();
             if (q.size()==maxStates
-                    || (q.isEmpty()==false && step - q.peek().ibsStep() >= minSteps)) {
+                    || (q.isEmpty()==false && ibsStep - q.peek().lastIbsStep() >= minSteps)) {
                 CompHapSegment head = q.poll();
-                int nextStart = steps.start((head.ibsStep() + step) >>> 1);
-                hapToStep.remove(head.hap());
-                compHapHap[head.compHapIndex()].add(hap);        // hap of new segment
-                compHapEnd[head.compHapIndex()].add(nextStart);  // end of old segment
-                head.updateSegment(hap, nextStart, step);
+                int startMarker = steps.start((head.lastIbsStep() + ibsStep) >>> 1);
+                hapToLastIbsStep.remove(head.hap());
+                compHapHap[head.compHapIndex()].add(hap);          // hap of new segment
+                compHapEnd[head.compHapIndex()].add(startMarker);  // end of old segment
+                head.updateSegment(hap, startMarker, ibsStep);
                 q.offer(head);
             }
             else {
                 int compHapIndex = q.size();
-                int start = 0;
+                int startMarker = 0;
                 compHapHap[compHapIndex].add(hap); // hap of new segment
-                q.offer(new CompHapSegment(hap, start, step, compHapIndex));
+                q.offer(new CompHapSegment(hap, startMarker, ibsStep, compHapIndex));
             }
         }
-        hapToStep.put(hap, step);
+        hapToLastIbsStep.put(hap, ibsStep);
     }
 
     private void updateHeadOfQ() {
         CompHapSegment head = q.peek();
         if (head!=null) {
-            int latestStep = hapToStep.get(head.hap(), NIL);
-            while (head.ibsStep()!=latestStep) {
+            int lastIbsStep = hapToLastIbsStep.get(head.hap(), NIL);
+            while (head.lastIbsStep()!=lastIbsStep) {
                 head = q.poll();
-                head.updateStep(latestStep);
+                head.setLastIbsStep(lastIbsStep);
                 q.offer(head);
                 head = q.peek();
-                latestStep = hapToStep.get(head.hap(), NIL);
+                lastIbsStep = hapToLastIbsStep.get(head.hap(), NIL);
             }
+        }
+    }
+
+    private void flushQ() {
+        updateHeadOfQ();
+        CompHapSegment head = q.poll();
+        while (head!=null) {
+            hapToLastIbsStep.remove(head.hap());
+            compHapHap[head.compHapIndex()].add(head.hap());       // hap of new segment
+            if (head.lastIbsStep()>0) {
+                int startMarker = steps.start((head.lastIbsStep() + nSteps - 1) >>> 1);
+                compHapEnd[head.compHapIndex()].add(startMarker);  // end of old segment
+            }
+            updateHeadOfQ();
+            head = q.poll();
         }
     }
 
     private int copyData(int hap, short[][] refPanel, byte[][] nMismatches) {
         int nCompHaps = q.size();
+        // flushQ();    // xxx uncomment this line to fix bug and change regression test
         initializeCopy(nCompHaps);
         for (int m=0; m<nMarkers; ++m) {
             short[] panel = refPanel[m];
@@ -258,10 +274,15 @@ public final class AdmixStates {
         int nRefHaps = chromData.nRefHaps();
         int nStates = Math.min(nRefHaps, maxStates);
         Random rand = new Random(chromData.par().seed() + hapListIndex);
-        int nStepsM1 = nSteps - 1;
+        int ibsStep = 0;
+        int startMarker = 0;
+        int compHapIndex = 0;
         for (int j=0; j<nStates; ++j) {
             int h = nTargHaps + rand.nextInt(nRefHaps);
-            q.add(new CompHapSegment(h, 0, nStepsM1, j));
+            if (hapToLastIbsStep.get(h, NIL)==NIL) {
+                q.add(new CompHapSegment(h, startMarker, ibsStep, compHapIndex++));
+                hapToLastIbsStep.put(h, startMarker);
+            }
         }
     }
 }

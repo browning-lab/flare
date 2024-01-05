@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Brian L. Browning
+ * Copyright 2021-2023 Brian L. Browning
  *
  * This file is part of the flare program.
  *
@@ -74,7 +74,7 @@ public final class ParamEstimator {
                     writeDiagnosticOutput(j, params);
                 }
                 params = ape.estimatedParams(initParams);
-                double[] nextMu = params.mu();
+                double[] nextMu = params.studyMu();
                 muHasConverged = muHasConverged(prevMu, nextMu, minMu, deltaMu);
                 prevMu = nextMu;
                 if (fixedParams.par().debug() && muHasConverged) {

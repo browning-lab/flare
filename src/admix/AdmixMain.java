@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Brian L. Browning
+ * Copyright 2021-2023 Brian L. Browning
  *
  * This file is part of the flare program.
  *
@@ -34,9 +34,9 @@ import java.util.Optional;
 public class AdmixMain {
 
     static final String EXECUTABLE = "flare.jar";
-    static final String REVISION = "flare.21Nov23.67d.jar";
-    static final String PROGRAM = EXECUTABLE + "  [ version 0.4.2, 21Nov23.67d ]";
-    static final String COPYRIGHT = "Copyright (C) 2022 Brian L. Browning";
+    static final String REVISION = "flare.__REV__.jar";
+    static final String PROGRAM = EXECUTABLE + "  [ version 0.5.0, __REV__ ]";
+    static final String COPYRIGHT = "Copyright (C) 2021-2023 Brian L. Browning";
     static final String COMMAND = "java -jar " + EXECUTABLE;
 
     private static final String HELP_MESSAGE = "Enter \"" + COMMAND
@@ -114,8 +114,8 @@ public class AdmixMain {
         try (AdmixChromData.It chromIt = new AdmixChromData.It(par)) {
             FixedParams fixedParams = FixedParams.create(par,
                     chromIt.refSamples(), chromIt.targSamples());
-            GlobalAncProbs globalAncProbs = new GlobalAncProbs(
-                    chromIt.targSamples().ids(), fixedParams.nAnc());
+            EstimatedGlobalAncProportions globalAncProbs = new EstimatedGlobalAncProportions(
+                    chromIt.targSamples().ids(), fixedParams.ancIds());
 
             try (AdmixWriter admixWriter = new AdmixWriter(fixedParams)) {
                 Optional<AdmixChromData> optChromData = chromIt.nextChrom();
@@ -160,9 +160,7 @@ public class AdmixMain {
 
     private static void writeModelFile(ParamsInterface params) {
         AdmixPar par = params.fixedParams().par();
-        String filename = par.out() + ".model";
-        par.verifyNotAnInputFile(filename);
-        File modelFile =  new File(filename);
+        File modelFile =  new File(par.out() + ".model");
         try (PrintWriter out = FileUtil.printWriter(modelFile)) {
             out.print(params.toString());
         }
@@ -177,8 +175,9 @@ public class AdmixMain {
         }
         AdmixPar par = new AdmixPar(args);
         checkOutputPrefix(par);
-        par.verifyNotAnInputFile(par.out() + ".anc.vcf.gz");
-        par.verifyNotAnInputFile(par.out() + ".log");
+        checkOutputFilename(par, par.out() + ".model");
+        checkOutputFilename(par, par.out() + ".anc.vcf.gz");
+        checkOutputFilename(par, par.out() + ".log");
         return par;
     }
 
@@ -189,6 +188,19 @@ public class AdmixMain {
             String info = Const.nl + "Error      :  " + err
                     + Const.nl     + "Parameter  :  " + "out=" + par.out()
                     + Const.nl     + "Directory  :  " + outPrefix;
+            Utilities.exit(new Throwable(err), info);
+        }
+    }
+
+    private static void checkOutputFilename(AdmixPar par, String outputFile) {
+        File file = new File(outputFile);
+        if (file.equals(par.gt()) || file.equals(par.ref()) || file.equals(par.map())
+                || file.equals(par.gtSamplesFile()) || file.equals(par.gt_ancestries())
+                || file.equals(par.excludemarkers())
+                || file.equals(par.ref_panel()) || file.equals(par.anc_panel())) {
+            String err = "An output file has the same name as an input file";
+            String info = Const.nl + "Error      :  " + err
+                    + Const.nl     + "Filename   :  " + file;
             Utilities.exit(new Throwable(err), info);
         }
     }
@@ -290,22 +302,27 @@ public class AdmixMain {
         sb.append(Const.nl);
         sb.append("  em                :  ");
         sb.append(par.em());
-        sb.append(Const.nl);
-        sb.append("  nthreads          :  ");
-        sb.append(par.nthreads());
-        sb.append(Const.nl);
-        sb.append("  seed              :  ");
-        sb.append(par.seed());
         if (par.gt_samples()!=null) {
             sb.append(Const.nl);
             sb.append("  gt-samples        :  ");
             sb.append(par.gt_samples());
+        }
+        if (par.gt_ancestries()!=null) {
+            sb.append(Const.nl);
+            sb.append("  gt-ancestries     :  ");
+            sb.append(par.gt_ancestries());
         }
         if (par.excludemarkers()!=null) {
             sb.append(Const.nl);
             sb.append("  excludemarkers    :  ");
             sb.append(par.excludemarkers());
         }
+        sb.append(Const.nl);
+        sb.append("  nthreads          :  ");
+        sb.append(par.nthreads());
+        sb.append(Const.nl);
+        sb.append("  seed              :  ");
+        sb.append(par.seed());
     }
 
     private static void addNonDefaultUndocumentedParams(AdmixPar par,
@@ -401,7 +418,7 @@ public class AdmixMain {
     }
 
     private static void printGlobalAncProbs(AdmixPar par,
-            GlobalAncProbs globalAncProbs) {
+            EstimatedGlobalAncProportions globalAncProbs) {
         File outFile = new File(par.out() + ".global.anc.gz");
         try (PrintWriter out = FileUtil.bgzipPrintWriter(outFile)) {
             globalAncProbs.writeGlobalAncestry(out);

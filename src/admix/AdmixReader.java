@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Brian L. Browning
+ * Copyright 2021-2023 Brian L. Browning
  *
  * This file is part of the flare program.
  *
@@ -54,6 +54,7 @@ import vcf.Samples;
  */
 public final class AdmixReader implements Closeable {
 
+    private final Filter<String> gtSampleFilter;
     private final SampleFileIt<RefGTRec> targIt;
     private final SampleFileIt<RefGTRec> refIt;
     private final Samples targSamples;
@@ -98,10 +99,10 @@ public final class AdmixReader implements Closeable {
         );
         boolean includeFilter = par.gt_samples()!=null
                 && par.gt_samples().startsWith("^")==false;
-        Filter<String> gtSampFilt = FilterUtil.sampleFilter(par.gtSamplesFile(),
-                includeFilter);
         Filter<Marker> markerFilter = FilterUtil.markerFilter(par.excludemarkers());
-        this.targIt = refIt(par.gt(), gtSampFilt, markerFilter, par.nthreads());
+        this.gtSampleFilter = FilterUtil.sampleFilter(par.gtSamplesFile(),
+                includeFilter);
+        this.targIt = refIt(par.gt(), gtSampleFilter, markerFilter, par.nthreads());
         this.refIt = refIt(par.ref(), refSampFilt, markerFilter, par.nthreads());
         this.targSamples = targIt.samples();
         this.refSamples = refIt.samples();
@@ -247,6 +248,14 @@ public final class AdmixReader implements Closeable {
             nextTargRec = null;
         }
         return success;
+    }
+
+    /**
+     * Returns the sample filter.
+     * @return the sample filter
+     */
+    public Filter<String> gtSampleFilter() {
+        return gtSampleFilter;
     }
 
     /**

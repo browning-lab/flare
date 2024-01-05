@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Brian L. Browning
+ * Copyright 2021-2023 Brian L. Browning
  *
  * This file is part of the flare program.
  *
@@ -51,7 +51,7 @@ public final class AncEstimator {
      * {@code (params == null) || (ibsHaps == null) || (globalAncProbs == null) || (admixWriter == null)}
      */
     public static void estAncestry(ParamsInterface params, IbsHaps ibsHaps,
-            GlobalAncProbs globalAncProbs, AdmixWriter admixWriter) {
+            EstimatedGlobalAncProportions globalAncProbs, AdmixWriter admixWriter) {
         if (params.fixedParams().par() != admixWriter.par()) {
             throw new IllegalArgumentException("inconsistent data");
         }
@@ -60,7 +60,7 @@ public final class AncEstimator {
     }
 
     private static EstimatedAncestry estAncestry(ParamsInterface params,
-            IbsHaps ibsHaps, GlobalAncProbs globalAncProbs) {
+            IbsHaps ibsHaps, EstimatedGlobalAncProportions globalAncProbs) {
         AdmixData data = new AdmixData(ibsHaps.chromData(), params);
         int nTargHaps = ibsHaps.chromData().nTargHaps();
         EstimatedAncestry estAnc = new EstimatedAncestry(data, globalAncProbs);

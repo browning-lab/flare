@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Brian L. Browning
+ * Copyright 2021-2023 Brian L. Browning
  *
  * This file is part of the flare program.
  *
@@ -35,7 +35,7 @@ import vcf.RefGT;
  */
 public class EstimatedAncestry {
 
-    private final ParamsInterface params;
+    private final FixedParams fixedParams;
     private final RefGT targRefGT;
     private final int nAnc;
     private final int ancProbsLength;
@@ -45,7 +45,7 @@ public class EstimatedAncestry {
     private final AdmixRecBuilder.ProbFormatter probFormatter;
     private final AtomicReferenceArray<FloatArray> hapToAncProbs;
     private final AtomicReferenceArray<IntArray> hapToAnc;
-    private final GlobalAncProbs globalAncProbs;
+    private final EstimatedGlobalAncProportions globalAncProbs;
 
     /**
      * Constructs a new {@code EstimatedAncestry} instance from the specified
@@ -57,14 +57,13 @@ public class EstimatedAncestry {
      * @throws NullPointerException if
      * {@code (admixData == null) || (globalAncProbs == null)}
      */
-    public EstimatedAncestry(AdmixData admixData, GlobalAncProbs globalAncProbs) {
-        AdmixPar par = admixData.params().fixedParams().par();
-        this.params = admixData.params();
+    public EstimatedAncestry(AdmixData admixData, EstimatedGlobalAncProportions globalAncProbs) {
+        this.fixedParams = admixData.params().fixedParams();
         this.targRefGT = admixData.chromData().targRefGT();
-        this.nAnc = params.fixedParams().nAnc();
+        this.nAnc = fixedParams.nAnc();
         this.ancProbsLength = targRefGT.nMarkers()*nAnc;
         this.nTargHaps = admixData.chromData().nTargHaps();
-        this.storeAncProbs = par.probs();
+        this.storeAncProbs = fixedParams.par().probs();
         if (storeAncProbs) {
             probFormatter = new AdmixRecBuilder.ProbFormatter();
             hapToAncProbs = new AtomicReferenceArray<>(nTargHaps);
@@ -162,7 +161,7 @@ public class EstimatedAncestry {
         if (end<start || end>targRefGT.nMarkers()) {
             throw new IndexOutOfBoundsException(String.valueOf(end));
         }
-        int nThreads = params.fixedParams().par().nthreads();
+        int nThreads = fixedParams.par().nthreads();
         int stepSize = (end - start + nThreads - 1)/nThreads;
         IntList partEnds = new IntList(1<<8);
         for (int j=start; j<end; j+=stepSize) {
@@ -176,7 +175,7 @@ public class EstimatedAncestry {
     }
 
     private UnsignedByteArray partCompressedOutput(int start, int end) {
-        AdmixRecBuilder recBuilder = new AdmixRecBuilder(params, targRefGT, start, end);
+        AdmixRecBuilder recBuilder = new AdmixRecBuilder(fixedParams, targRefGT, start, end);
         int nTargSamples = nTargHaps>>1;
         if (storeAncProbs) {
             for (int s=0; s<nTargSamples; ++s) {

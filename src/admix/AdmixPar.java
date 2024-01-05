@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Brian L. Browning
+ * Copyright 2021-2023 Brian L. Browning
  *
  * This file is part of the flare program.
  *
@@ -18,7 +18,6 @@
 package admix;
 
 import blbutil.Const;
-import blbutil.Utilities;
 import blbutil.Validate;
 import java.io.File;
 import java.util.Map;
@@ -55,6 +54,7 @@ public final class AdmixPar {
     private final long seed;
     private final String gt_samples;
     private final File gtSamplesFile;
+    private final File gt_ancestries;
     private final File excludemarkers;
 
     // Undocumented parameters
@@ -135,12 +135,14 @@ public final class AdmixPar {
         model = Validate.getFile(Validate.stringArg("model", argsMap, false,
                 null, null));
         em = Validate.booleanArg("em", argsMap, false, DEF_EM);
-        nthreads = Validate.intArg("nthreads", argsMap, false, DEF_THREADS, 1, IMAX);
-        seed = Validate.longArg("seed", argsMap, false, DEF_SEED, LMIN, LMAX);
         gt_samples = Validate.stringArg("gt-samples", argsMap, false, null, null);
         gtSamplesFile = AdmixPar.gtSamplesFile(gt_samples);
+        gt_ancestries = Validate.getFile(
+                Validate.stringArg("gt-ancestries", argsMap, false, null, null));
         excludemarkers = Validate.getFile(
                 Validate.stringArg("excludemarkers", argsMap, false, null, null));
+        nthreads = Validate.intArg("nthreads", argsMap, false, DEF_THREADS, 1, IMAX);
+        seed = Validate.longArg("seed", argsMap, false, DEF_SEED, LMIN, LMAX);
 
         // Undocumented parameters
         panel_weight = Validate.floatArg("panel-weight", argsMap, false, DEF_PANEL_WEIGHT, FMIN, 1.0f);
@@ -170,24 +172,6 @@ public final class AdmixPar {
     }
 
     /**
-     * Prints an error message and terminates the Java virtual machine if
-     * the specified file is an input file.
-     * @param filename a filename
-     * @throws NullPointerException if {@code filename == null}
-     */
-    void verifyNotAnInputFile(String filename) {
-        File file = new File(filename);
-        if (file.equals(gt) || file.equals(ref) || file.equals(map)
-                || file.equals(gtSamplesFile) || file.equals(excludemarkers)
-                || file.equals(ref_panel) || file.equals(anc_panel)) {
-            String err = "An output file has the same name as an input file";
-            String info = Const.nl + "Error      :  " + err
-                    + Const.nl     + "Filename   :  " + file;
-            Utilities.exit(new Throwable(err), info);
-        }
-    }
-
-    /**
      * Returns the command line arguments.
      * @return the command line arguments
      */
@@ -205,25 +189,26 @@ public final class AdmixPar {
         return "Syntax: " + AdmixMain.COMMAND + " [arguments in format: parameter=value]" + nl
                 + nl
                 + "Required Parameters:" + nl
-                + "  ref=<VCF file with phased reference genotypes>       (required)" + nl
-                + "  ref-panel=<file with reference sample to panel map>  (required)" + nl
-                + "  gt=<VCF file with phased genotypes to be analyzed>   (required)" + nl
-                + "  map=<PLINK map file with cM units>                   (required)" + nl
-                + "  out=<output file prefix>                             (required)" + nl + nl
+                + "  ref=<VCF file with phased reference genotypes>        (required)" + nl
+                + "  ref-panel=<file with reference sample to panel map>   (required)" + nl
+                + "  gt=<VCF file with phased genotypes to be analyzed>    (required)" + nl
+                + "  map=<PLINK map file with cM units>                    (required)" + nl
+                + "  out=<output file prefix>                              (required)" + nl + nl
 
                 + "Optional Parameters:" + nl
 //                + "  anc-panel=<file with ancestry to panels map>         (optional)" + nl
-                + "  array=<genotypes are from a SNP array: true/false>   (default: " + DEF_ARRAY + ")" + nl
-                + "  min-maf=<minimum MAF in reference VCF file>          (default: " + DEF_MIN_MAF + ")" + nl
-                + "  min-mac=<minimum MAC in reference VCF file>          (default: " + DEF_MIN_MAC + ")" + nl
-                + "  probs=<report ancestry probs: true/false>            (default: " + DEF_PROBS + nl
-                + "  gen=<number of generations since admixture>          (default: " + DEF_GEN + ")" + nl
-                + "  model=<file with model parameters>                   (optional)" + nl
-                + "  em=<estimate model parameters using EM: true/false>  (default: " + DEF_EM + ")" + nl
-                + "  nthreads=<number of computational threads>           (default: all CPU cores)" + nl
-                + "  seed=<seed for random number generations>            (default: " + DEF_SEED + ")" + nl
-                + "  gt-samples=<file with sample IDs to analyze>         (optional)" + nl
-                + "  excludemarkers=<file with markers to exclude>        (optional)" + nl;
+                + "  array=<genotypes are from a SNP array: true/false>    (default: " + DEF_ARRAY + ")" + nl
+                + "  min-maf=<minimum MAF in reference VCF file>           (default: " + DEF_MIN_MAF + ")" + nl
+                + "  min-mac=<minimum MAC in reference VCF file>           (default: " + DEF_MIN_MAC + ")" + nl
+                + "  probs=<report ancestry probs: true/false>             (default: " + DEF_PROBS + nl
+                + "  gen=<number of generations since admixture>           (default: " + DEF_GEN + ")" + nl
+                + "  model=<file with model parameters>                    (optional)" + nl
+                + "  em=<estimate model parameters using EM: true/false>   (default: " + DEF_EM + ")" + nl
+                + "  gt-samples=<file with sample IDs to analyze>          (optional)" + nl
+                + "  gt-ancestries=<file with sample ancestry proportions> (optional)" + nl
+                + "  excludemarkers=<file with markers to exclude>         (optional)" + nl
+                + "  nthreads=<number of computational threads>            (default: all CPU cores)" + nl
+                + "  seed=<seed for random number generations>             (default: " + DEF_SEED + ")" + nl;
     }
 
     // Required parameters
@@ -372,6 +357,17 @@ public final class AdmixPar {
      */
     public File gtSamplesFile() {
         return gtSamplesFile;
+    }
+
+    /**
+     * Returns the gt-ancestries file or {@code null}
+     * if no gt-ancestries parameter was specified.
+     *
+     * @return the gt-ancestries file or {@code null}
+     * if no gt-ancestries parameter was specified.
+     */
+    public File gt_ancestries() {
+        return gt_ancestries;
     }
 
     /**

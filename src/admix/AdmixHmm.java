@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Brian L. Browning
+ * Copyright 2021-2023 Brian L. Browning
  *
  * This file is part of the flare program.
  *
@@ -156,7 +156,7 @@ public class AdmixHmm {
     /**
      * Estimates local ancestry probabilities and stores ancestry probabilities
      * in the specified {@code EstimatedAncestry} object.
-     * @param targHap a target haplotype index
+     * @param targHap a target haplotype
      * @param estAnc an object for storing the estimated local ancestry
      * @throws IndexOutOfBoundsException if
      * {@code targHap < 0 || targHap >= this.chromData().nTargHaps()}
@@ -171,12 +171,12 @@ public class AdmixHmm {
         }
         int nHapStates = states.ibsStates(targHap, refPanel, nMismatches);
         setBwdCheckPoints(nHapStates);
-        fwdAlgAnc(nHapStates);
+        fwdAlgAnc(targHap, nHapStates);
         estAnc.set(targHap, ancProbs);
     }
 
     private void fwdAlgRhoP(int nHapStates) {
-        double[] ancSums = params.mu();
+        double[] ancSums = params.studyMu();
         initFwd(fwd, nHapStates);
         int window = -1;
         int nextWindowStart = 0;
@@ -200,7 +200,7 @@ public class AdmixHmm {
     }
 
     private void fwdAlgMuT(int nHapStates) {
-        double[] ancSums = params.mu();
+        double[] ancSums = params.studyMu();
         initFwd(fwd, nHapStates);
         int window = -1;
         int nextWindowStart = 0;
@@ -223,8 +223,8 @@ public class AdmixHmm {
         }
     }
 
-    private void fwdAlgAnc(int nHapStates) {
-        double[] ancSums = params.mu();
+    private void fwdAlgAnc(int targHap, int nHapStates) {
+        double[] ancSums = params.studyMu();
         initFwd(fwd, nHapStates);
         int window = -1;
         int nextWindowStart = 0;
@@ -232,11 +232,11 @@ public class AdmixHmm {
         for (int m=0; m<nMarkers; ++m)  {
             if (m==nextWindowStart) {
                 offset = -1;
-                fillBwdWindow(++window, nHapStates);
+                fillBwdWindow(targHap, ++window, nHapStates);
                 nextWindowStart = Math.min(nextWindowStart+windowSize, nMarkers);
             }
             ++offset;
-            fwdSums[m] = hmmUpdater.fwdUpdate(m, fwd, ancSums, refPanel[m],
+            fwdSums[m] = hmmUpdater.fwdUpdate(targHap, m, fwd, ancSums, refPanel[m],
                     nMismatches[m], nHapStates);
             setAncProbs(m, fwd, bwdWindow[offset], nHapStates);
         }
@@ -267,6 +267,21 @@ public class AdmixHmm {
             }
         }
         assert windowIndex==0;
+    }
+
+    private void fillBwdWindow(int targHap, int window, int nHapStates) {
+        // checkpoint is last marker in window
+        int m = Math.min((window+1)*windowSize, nMarkers) - 1;
+        int lastOffset = m - window*windowSize;
+        AdmixUtils.copy(bwdCheckPts[window], bwd, nHapStates);
+        AdmixUtils.copy(bwdCheckPts[window], bwdWindow[lastOffset], nHapStates);
+        for (int j=(lastOffset-1); j>=0; --j) {
+            int mP1 = m;
+            --m;
+            hmmUpdater.bwdUpdate(targHap, m, bwd, refPanel[mP1],
+                    nMismatches[mP1], nHapStates);
+            AdmixUtils.copy(bwd, bwdWindow[j], nHapStates);
+        }
     }
 
     private void fillBwdWindow(int window, int nHapStates) {

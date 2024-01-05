@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Brian L. Browning
+ * Copyright 2021-2023 Brian L. Browning
  *
  * This file is part of the flare program.
  *
@@ -88,7 +88,7 @@ public class AncSpecificParams implements ParamsInterface {
     }
 
     @Override
-    public double[] mu() {
+    public double[] studyMu() {
         return mu.clone();
     }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Brian L. Browning
+ * Copyright 2021-2023 Brian L. Browning
  *
  * This file is part of the flare program.
  *
@@ -88,9 +88,9 @@ public class AdmixUtils {
      * @throws NullPointerException if {@code da == null}
      */
     public static double sum(double[] da) {
-        double sum = 0f;
-        for (double f : da) {
-            sum += f;
+        double sum = 0.0;
+        for (double d : da) {
+            sum += d;
         }
         return sum;
     }
@@ -319,7 +319,7 @@ public class AdmixUtils {
      * @return a {@code HashMap} that maps each string array element to its
      * index
      * @throws NullPointerException if {@code sa == null} or if any array
-     * element is {@code null}.
+     * element is {@code null}
      * @throws IllegalArgumentException if any two array elements are equal
      */
     public static HashMap<String, Integer> inverseMap(String[] sa) {

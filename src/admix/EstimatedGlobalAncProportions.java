@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Brian L. Browning
+ * Copyright 2021-2023 Brian L. Browning
  *
  * This file is part of the flare program.
  *
@@ -18,7 +18,7 @@
 package admix;
 
 import blbutil.Const;
-import blbutil.FloatArray;
+import blbutil.DoubleArray;
 import java.io.PrintWriter;
 import java.text.DecimalFormat;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -28,40 +28,36 @@ import java.util.stream.IntStream;
  * <p>Class {@code GlobalAncestryProbs} stores the estimated global ancestry
  * proportion for each target sample.</p>
  *
- * <p>Instances of class {@code GlobalAncProbs} are thread-safe.</p>
+ * <p>Instances of class {@code EstimatedGlobalAncProportions} are thread-safe.</p>
  *
  * @author Brian L. Browning {@code <browning@uw.edu>}
  */
-public class GlobalAncProbs {
+public class EstimatedGlobalAncProportions {
 
     private final String[] sampleIds;
-    private final int nAnc;
-    private final AtomicReferenceArray<FloatArray> sampAncProbs;
+    private final String[] ancIds;
+    private final AtomicReferenceArray<DoubleArray> sampAncProbs;
 
     /**
      * Constructs a new {@code GlobalAncProbs} instance from the specified
      * data.
      * @param sampleIds the sample identifiers
-     * @param nAnc the number of ancestries
-     * @throws IllegalArgumentException if {@code nAnc < 1}
-     * @throws NullPointerException if {@code sampleIds == null}
+     * @param ancIds the list of ancestry identifiers
+     * @throws NullPointerException if {@code (sampleIds == null) || (ancIds == null)}
      */
-    public GlobalAncProbs(String[] sampleIds, int nAnc) {
-        if (nAnc < 1) {
-            throw new IllegalArgumentException(String.valueOf(nAnc));
-        }
+    public EstimatedGlobalAncProportions(String[] sampleIds, String[] ancIds) {
         this.sampleIds = sampleIds.clone();
-        this.nAnc = nAnc;
-        this.sampAncProbs = initialSampAncProbs(sampleIds.length, nAnc);
+        this.ancIds = ancIds.clone();
+        this.sampAncProbs = initialSampAncProbs(sampleIds.length, ancIds.length);
     }
 
-    private static AtomicReferenceArray<FloatArray> initialSampAncProbs(
+    private static AtomicReferenceArray<DoubleArray> initialSampAncProbs(
             int nSamples, int nAnc) {
-        FloatArray ancProbs = new FloatArray(new float[nAnc]);
-        FloatArray[] fa2 = IntStream.range(0, nSamples)
+        DoubleArray ancProbs = new DoubleArray(new double[nAnc]);
+        DoubleArray[] fa2 = IntStream.range(0, nSamples)
                 .parallel()
                 .mapToObj(j -> ancProbs)
-                .toArray(FloatArray[]::new);
+                .toArray(DoubleArray[]::new);
         return new AtomicReferenceArray<>(fa2);
     }
 
@@ -86,7 +82,7 @@ public class GlobalAncProbs {
      * @return the number of ancestries
      */
     public int nAnc() {
-        return nAnc;
+        return ancIds.length;
     }
 
     /**
@@ -102,22 +98,23 @@ public class GlobalAncProbs {
      * @throws NullPointerException if {@code ancProbs == null}
      */
     public void add(int hap, int nMarkers, double[] ancProbs) {
-        if (nMarkers*nAnc != ancProbs.length) {
+        if (nMarkers*ancIds.length != ancProbs.length) {
             throw new IllegalArgumentException(String.valueOf(nMarkers));
         }
         int sample = hap >> 1;
         sampAncProbs.getAndUpdate(sample, probs -> update(probs, nMarkers, ancProbs));
     }
 
-    private FloatArray update(FloatArray sampAncProbs, int nMarkers, double[] ancProbs) {
-        float[] fa = sampAncProbs.toArray();
+    private DoubleArray update(DoubleArray sampAncProbs, int nMarkers,
+            double[] ancProbs) {
+        double[] da = sampAncProbs.toArray();
         int index = 0;
         for (int m=0; m<nMarkers; ++m) {
-            for (int a=0; a<nAnc; ++a) {
-                fa[a] += ancProbs[index++];
+            for (int a=0; a<ancIds.length; ++a) {
+                da[a] += ancProbs[index++];
             }
         }
-        return new FloatArray(fa);
+        return new DoubleArray(da);
     }
 
     /**
@@ -134,10 +131,20 @@ public class GlobalAncProbs {
     public void writeGlobalAncestry(PrintWriter out) {
         String[] df3 = df3();
         int step = 1<<16;
+        printHeaderLine(out);
         for (int start=0; start<sampleIds.length; start+=step) {
             int end = Math.min(start + step, sampleIds.length);
             printGlobalProbs(start, end, df3, out);
         }
+    }
+
+    private void printHeaderLine(PrintWriter out) {
+        out.print("SAMPLE");
+        for (String anc : ancIds) {
+            out.print(Const.tab);
+            out.print(anc);
+        }
+        out.println();
     }
 
     private static String[] df3() {
@@ -160,15 +167,15 @@ public class GlobalAncProbs {
     }
 
     private String globalProbsString(int sample, String[] df3) {
-        FloatArray fa = sampAncProbs.get(sample);
-        StringBuilder sb = new StringBuilder(20 + 5*nAnc);
+        DoubleArray fa = sampAncProbs.get(sample);
+        StringBuilder sb = new StringBuilder(20 + 5*ancIds.length);
         sb.append(sampleIds[sample]);
         float sum = 0f;
-        for (int j=0; j<nAnc; ++j) {
+        for (int j=0; j<ancIds.length; ++j) {
             sum += fa.get(j);
         }
         float factor = 1000f/sum;
-        for (int j=0; j<nAnc; ++j) {
+        for (int j=0; j<ancIds.length; ++j) {
             sb.append(Const.tab);
             sb.append(df3[ (int) Math.rint(factor*fa.get(j)) ]);
         }

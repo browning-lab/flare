@@ -4,8 +4,8 @@ The **flare** program uses a set of reference haplotypes
 to infer the ancestry of each allele in a set of admixed study samples.
 The **flare** program is fast, accurate, and memory-efficient.
 
-Last updated: November 21, 2023  
-Current version: 0.4.2
+Last updated: January 4, 2024  
+Current version: 0.5.0
 
 ## Contents
 
@@ -13,10 +13,15 @@ Current version: 0.4.2
 * [Running flare](#running-flare)
   * [Required parameters](#required-parameters)
   * [Optional parameters](#optional-parameters)
+* [Ancestry indices](#ancestry-indices)
 * [Output files](#output-files)
-* [Model file format](#model-file-format)
-* [The model and em parameters](#the-model-and-em-parameters)
+  * [Global ancestries file format](#global-ancestries-file-format)
+  * [Model file format](#model-file-format)
+* [Running flare with multiple chromosomes](#running-flare-with-multiple-chromosomes)
+* [Running flare with small or large sample sizes](#running-flare-with-small-or-large-sample-sizes)
+* [Change log](#change-log)
 * [License](#license)
+* [Acknowledgments](#acknowledgements)
 * [Citation](#citation)
 
 ## Installation
@@ -85,7 +90,7 @@ reference VCF file that are not present in the reference panel file
 (see the **ref-panel** parameter).
 
 * **ref-panel=[file]** where **[file]** is a reference panel file with two
-white-space-delimited fields per line. The first field is a sample identifier
+whitespace-delimited fields per line. The first field is a sample identifier
 in the reference VCF file (see the **ref** parameter), and the second field
 is the name of the reference panel containing the reference sample.
 Flare will ignore samples in the reference VCF file that are not present
@@ -146,7 +151,7 @@ is an initial value for the **gen** parameter that will be used in the
 parameter estimation algorithm. The **gen** parameter is ignored if the
 **model** parameter is used.
 
-* **model=[file]** where **[file]** is a white-space delimited file containing
+* **model=[file]** where **[file]** is a whitespace-delimited file containing
 model parameters (see [**Model file format**](#model-file-format)). If the
 **model** parameter is not used, **flare** will supply a reasonable set of
 model parameters (see the [**flare** paper](#citation) for details).
@@ -155,12 +160,35 @@ generations since admixture and the proportion of genotypes with each
 ancestry and will replace the values for these two parameters
 in the **model** file with their estimated values.
 The model parameters used in the analysis are reported in the output
-[**.model**](#output-files) file.
+[**model**](#output-files) file.
 
 * **em=[true/false]** specifies whether the number of generations since
 admixture and the proportion of genotypes with each ancestry will
 be estimated using an iterative expectation maximization (EM) algorithm
 prior to inferring local ancestry (**default: em=true**).
+
+* **gt-samples=[file]** (or **gt-samples=^[file]**) where **[file]**
+is a text file containing one sample identifier per line.
+Only admixed study samples that are present in **[file]** (or absent from
+**[file]** if **[file]** is preceeded by **^**) will be analyzed. If the
+**gt-samples** parameter is omitted, all admixed study samples will be included
+in the analysis. The **gt-samples** parameter filters the study samples,
+and the **ref-panel** parameter filters the reference samples.
+
+* **gt-ancestries=[file]** where **[file]** is a whitespace-delimited text file
+containing ancestry proportions for a set of samples.  The **gt-ancestries**
+file has the same format as the output **global ancestries** file
+(see [**Global ancestries file format**](#global-ancestries-file-format)).
+If a study sample is present in the first column of the **gt-ancestries** file,
+the ancestry proportions in the **gt-ancestries** file will be used
+when estimating local ancestry in that sample; otherwise, study-wide
+ancestry proportions will be used.
+
+* **excludemarkers=[file]** where [file] is a text file containing markers
+(one marker identifier per line) that are to be excluded from the analysis.
+A marker identifier can be an identifier from the VCF record ID field, or it
+can be a VCF record's CHROM and POS fields separated by a colon
+(i.e. "CHROM:POS").
 
 * **nthreads=[integer ≥ 1]** specifies the number of computational threads to
 use for the analysis. The default **nthreads** parameter is the number of
@@ -171,25 +199,32 @@ file.
 (**default: seed=-99999**). Repeating an analysis with the same **seed** and
 **nthreads** parameters will produce the same local ancestry estimates.
 
-* **gt-samples=[file]** (or **gt-samples=^[file]**) where **[file]**
-is a text file containing one sample identifier per line.
-Only admixed study samples that are present in **[file]** (or absent from
-**[file]** if **[file]** is preceeded by **^**) will be analyzed. If the
-**gt-samples** parameter is omitted, all admixed study samples will be included
-in the analysis. The **gt-samples** parameter filters the study samples,
-and the **ref-panel** parameter filters the reference samples.
+[Contents](#contents)
 
-* **excludemarkers=[file]** where [file] is a text file containing markers
-(one marker identifier per line) that are to be excluded from the analysis.
-A marker identifier can be an identifier from the VCF record ID field, or it
-can be a VCF record's CHROM and POS fields separated by a colon
-(i.e. "CHROM:POS").
+## Ancestry indices
+
+The **flare** program obtains the list of ancestries from the input files.
+If the **model** parameter is specified, **flare** will use the list of
+of ancestries at the start of the **model** file. If the **model**
+parameter is not specified, **flare** will use the reference panel
+names in the **ref-panel** file, in the order each name first appears in the
+**ref-panel** file, as the ancestry names.
+
+If the **gt-ancestries** parameter is specified, the list of ancestries in the
+header line of the **gt-ancestries** file must have the same ancestries in
+the same order as the list of ancestries obtained from the **model** or
+**ref-panel** file.
+
+The index of an ancestry in the list of ancestries determines a unique,
+non-negative integer associated with each ancestry. The first ancestry in
+the list has index 0, the second ancestry in the list has index 1, and so on.
 
 [Contents](#contents)
 
 ## Output files
+
 The **flare** program produces four output files: a **log** file, a
-**model** file, a **VCF** file, and a **global ancestries** file.
+**model** file, a **VCF** file, and a **global ancestry** file.
 
 The output **log** file (.log) contains a summary of the analysis.
 
@@ -204,29 +239,39 @@ are reported in the **AN1** and **AN2** FORMAT subfields.
 If [**probs=true**](#optional-parameters), the posterior
 ancestry probabilities at each marker for the admixed sample's first and
 second haplotypes are reported in the **ANP1** and **ANP2** FORMAT subfields.
-The integer that denotes each ancestry is listed in the
+The integer that identifies each ancestry is given in the
 "##ANCESTRY=<...>" meta-information line.
 
 The output **global ancestries** file (.global.anc.gz) contains the
-estimated ancestry proportions for each admixed sample.  Each
-tab-delimited line in the file gives global ancestry probabilities for
-one sample. The first field is the sample identifier, and the
-remaining fields report the global ancestry proportions for each ancestry.
-The $k$-th ancestry probability corresponds to the $k$-th ancestry in the
-output **VCF** file.
-The global probability for an ancestry in an individual is the mean
-ancestry probability across all markers and across both haplotypes in
-the individual.
+estimated global ancestry proportions for each admixed sample.
+The global ancestry file has the same format as the optional input
+**gt-ancestries** file
+(see [Global ancestry file format](#global-ancestry-file-format)).
 
 [Contents](#contents)
 
-## Model file format
+### Global ancestries file format
 
-A [**model**](#output-files) file contains model parameters.
+A **global ancestries** file is a whitespace-delimited text file containing
+the global ancestry proportions for a set of samples. If there are
+$A$ ancestries, each line of a **global ancestry** file has $A + 1$ fields.
+The first line of a **global ancestry** file is a header line.  The
+first field of the header line is `SAMPLE`, and the remaining fields
+are the $A$ ancestry identifiers. The first field in each subsequent line
+is a sample identifier, and the remaining $A$ fields are the
+proportions of the genome having the ancestry given in the corresponding
+fields of the header line.  A sample identifier is not permitted to appear
+more than once in the first column.
+
+[Contents](#contents)
+
+### Model file format
+
+A **model** file contains model parameters.
 The model file can contain comment lines, blank lines, and data lines.
-A comment line is a line whose first non-white-space character is the
-'#' character. A blank line contains only white-space characters.
-All other lines are data lines. Data lines contain white-space delimited
+A comment line is a line whose first non-whitespace character is the
+'#' character. A blank line contains only whitespace characters.
+All other lines are data lines. Data lines contain whitespace-delimited
 fields that specify the model parameters.
 
 If there are $A$ ancestries and $P$ reference panels, the model file will
@@ -260,29 +305,34 @@ and has ancestry $i$.
 It is not normally necessary to use a model file
 because **flare** will automatically estimate model parameters by default
 (see the [**em**](#optional-parameters) parameter). If you want
-to specify the model parameters, the easiest way to ensure that the model file
-is in the correct format is to run **flare** without the
+to specify the model parameters, the easiest way to ensure that the **model**
+file is in the correct format is to run **flare** without the
 [**model**](#optional-parameters) parameter, and then modify the values in the
 output model file.
 
 [Contents](#contents)
 
-## The model and em parameters
-**flare** is designed for genome-wide analysis.  If an
-input VCF file contains multiple chromosomes, **flare** will estimate model
+## Running flare with multiple chromosomes
+
+If an input VCF file contains multiple chromosomes, **flare** will estimate model
 parameters using data from the first chromosome and use these model parameters
 for all subsequent chromosomes in the VCF file.
 
 If you analyze each chromosome separately, you can use the same
 model parameters for all chromosomes by analyzing one chromosome, and then
-analyze all remaining chromosomes with
+analyze each remaining chromosome with
 [**em=false**](#optional-parameters) and the
 [**model**](#optional-parameters) parameter set equal to the output
-[**.model**](#output-files) file from the first chromosome's analysis.
+[**model**](#output-files) file from the first chromosome's analysis.
 
-If there are not enough data to accurately estimate model parameters, you can
-use the [**model**](#optional-parameters) and [**em=false**](#optional-parameters)
-parameters to specify the model parameters used in the analysis.
+[Contents](#contents)
+
+## Running flare with small or large sample sizes
+
+If the sample size is too small for accurate estimation of model parameters,
+you can use the [**model**](#optional-parameters) and
+[**em=false**](#optional-parameters) parameters to specify the model
+parameters used in the analysis.
 
 If you are analyzing an extremely large number of admixed samples
 and need to reduce memory use, you can partition the admixed samples
@@ -291,13 +341,36 @@ into subsets and analyze each subset of admixed samples separately (see the
 ancestry for a partitioned and a non-partitioned analysis will be the same if
 you specify [**em=false**](#optional-parameters) and use the same
 [**model**](#optional-parameters), [**seed**](#optional-parameters), and
-[**nthreads**](#optional-parameters) parameters for all analyses.
+[**nthreads**](#optional-parameters) parameters for each analysis.
+
+[Contents](#contents)
+
+## Change log
+
+* Add a header line to the output
+[global ancestries](#global-ancestries-file-format) file (version 0.5)
+* Add an optional **gt-ancestries** command line parameter
+(see [Optional parameters](#optional-parameters)) (version 0.5)
+* Added [global ancestries](#global-ancestries-file-format) file with 
+global ancestry probabilities (version 0.4)
+* Add support for bref3-compressed VCF files (version 0.4)
 
 [Contents](#contents)
 
 ## License
+
 The **flare** program is licensed under the Apache License, Version 2.0 (the License).
 You may obtain a copy of the License from https://www.apache.org/licenses/LICENSE-2.0
+
+[Contents](#contents)
+
+## Acknowledgements
+
+Thank you to Kai Zeng and Thomas Hickman for suggesting several of the
+new features in **flare** versions 0.4 and 0.5, and to Thomas Hickman
+for creating and sharing implementations of two features: support 
+for bref3-compressed VCF files and for user-specified, per-sample 
+admixture proportions.
 
 [Contents](#contents)
 
@@ -315,3 +388,4 @@ doi: http://dx.doi.org/10.1016/j.ajhg.2022.12.010
 [Brian Browning](https://faculty.washington.edu/browning) developed the **flare** software.
 
 [Contents](#contents)
+

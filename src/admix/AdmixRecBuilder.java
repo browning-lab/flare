@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Brian L. Browning
+ * Copyright 2021-2023 Brian L. Browning
  *
  * This file is part of the flare program.
  *
@@ -40,7 +40,7 @@ import vcf.RefGT;
  */
 public final class AdmixRecBuilder {
 
-    private final ParamsInterface params;
+    private final FixedParams fixedParams;
     private final RefGT targRefGT;
     private final int mStart;
     private final int mEnd;
@@ -55,20 +55,19 @@ public final class AdmixRecBuilder {
     /**
      * Constructs a new {@code AdmixdRecBuilder} instance for the specified
      * data.
-     * @param params the analysis parameters for a local ancestry inference
+     * @param fixedParams the fixed parameters for a local ancestry inference
      * analysis
      * @param targRefGT the phased reference and target haplotypes with
      * reference samples preceding target samples
      * @param start the first marker index (inclusive)
      * @param end the last marker index (exclusive)
      * @throws IllegalArgumentException if
-     * {@code (params.fixedParams().refSamples().size()
-     * + params.fixedParams().targSamples().size())<<1 != targRefGT.nHaps()}
+     * {@code (fixedParams.refSamples().size() + fixedParams.targSamples().size())<<1 != targRefGT.nHaps()}
      * @throws IndexOutOfBoundsException if
      * {@code (start < 0 || end > targRefGT.nMarkers() || end < start)}
-     * @throws NullPointerException if {@code par == null || targRefGT == null}
+     * @throws NullPointerException if {@code fixedParams == null || targRefGT == null}
      */
-    public AdmixRecBuilder(ParamsInterface params, RefGT targRefGT, int start,
+    public AdmixRecBuilder(FixedParams fixedParams, RefGT targRefGT, int start,
             int end) {
         if (start<0) {
             throw new IndexOutOfBoundsException(String.valueOf(start));
@@ -76,19 +75,18 @@ public final class AdmixRecBuilder {
         if (end<start || end>targRefGT.nMarkers()) {
             throw new IndexOutOfBoundsException(String.valueOf(end));
         }
-        FixedParams fp = params.fixedParams();
-        int nHaps = (fp.refSamples().size() + fp.targSamples().size())<<1;
+        int nHaps = (fixedParams.refSamples().size() + fixedParams.targSamples().size())<<1;
         if (targRefGT.nHaps() != nHaps) {
             throw new IllegalArgumentException(String.valueOf(targRefGT.nHaps()));
         }
         int mSize = end - start;
-        this.params = params;
+        this.fixedParams = fixedParams;
         this.targRefGT = targRefGT;
         this.mStart = start;
         this.mEnd = end;
-        this.nTargHaps = (params.fixedParams().targSamples().size() << 1);
-        this.nAnc = params.fixedParams().nAnc();
-        this.printProbs = params.fixedParams().par().probs();
+        this.nTargHaps = (fixedParams.targSamples().size() << 1);
+        this.nAnc = fixedParams.nAnc();
+        this.printProbs = fixedParams.par().probs();
         this.probStart = nAnc*start;
         this.sampleData = new StringBuilder[mSize];
         int charPerHap = printProbs ? nAnc<<3 : nAnc<<1;
@@ -109,13 +107,13 @@ public final class AdmixRecBuilder {
     }
 
     /**
-     * Returns the analysis parameters for a local ancestry inference
+     * Returns the fixed parameters for a local ancestry inference
      * analysis
-     * @return the analysis parameters for a local ancestry inference
+     * @return the fixed parameters for a local ancestry inference
      * analysis
      */
-    public ParamsInterface params() {
-        return params;
+    public FixedParams fixedParams() {
+        return fixedParams;
     }
 
     /**
@@ -233,7 +231,7 @@ public final class AdmixRecBuilder {
      * records as an {@code UnsignedByteArray}.
      * @return an unsigned byte array containing compressed VCF records
      * @throws IllegalStateException if
-     * {@code this.hapCnt() != (this.params().fixedParams().targSamples().size() << 1)}
+     * {@code this.hapCnt() != (this.fixedParams().targSamples().size() << 1)}
      * when this method is invoked
      */
     public UnsignedByteArray toUnsignedByteArray() {
@@ -250,7 +248,7 @@ public final class AdmixRecBuilder {
       *@param out the {@code PrintWriter} to which the VCF record will be
      * printed
      * @throws IllegalStateException if
-     * {@code this.hapCnt() != (this.params().fixedParams().targSamples().size() << 1)}
+     * {@code this.hapCnt() != (this.fixedParams().targSamples().size() << 1)}
      * when this method is invoked
      * @throws NullPointerException if {@code out == null}
      */
