@@ -1,5 +1,6 @@
 /*
  * Copyright 2021-2023 Brian L. Browning
+ * Copyright 2024 Genomics plc
  *
  * This file is part of the flare program.
  *
@@ -91,6 +92,13 @@ public class GlobalAncestries {
         IntList tempSampleIndices = new IntList();
         ArrayList<double[]> tempAncestryProbs = new ArrayList<>();
         this.nAnc = expectedAncIds.length;
+        String[] foundAncIds = readAncIds(gtAncFile);
+        if (!Arrays.equals(foundAncIds, expectedAncIds)) {
+            String err = "Error: expected ancestries in gt-ancestries file to be: "
+                    + Arrays.toString(expectedAncIds) + ", found: " + Arrays.toString(expectedAncIds);
+            printErrAndExit(err, gtAncFile, null);
+        }
+
         try (FileIt<String> it = InputIt.fromGzipFile(gtAncFile)) {
             readLines(it, lines, 1); // read header line
             if (lines.size()==1) {

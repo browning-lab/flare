@@ -1,6 +1,6 @@
 /*
  * Copyright 2021-2023 Brian L. Browning
- *
+ * Copyright 2024 Genomics plc
  * This file is part of the flare program.
  *
  * Licensed under the Apache License, Version 2.0 (the License);
@@ -162,6 +162,17 @@ public class AdmixHmmProbs {
      */
     public double sampleMu(int sample, int ancestry) {
         return sampleMu[sample][ancestry];
+    }
+
+    /**
+     * Returns all the ancestry proportions for the specified sample
+     * @param sample a sample index
+     * @return an array containing the ancestry proportions for the specified sample
+     * @throws IndexOutOfBoundsException if
+     * {@code (sample < 0 || sample >= this.nTargSamples())}
+     */
+    public double[] sampleMu(int sample) {
+        return sampleMu[sample].clone();
     }
 
     /**

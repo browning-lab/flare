@@ -1,3 +1,22 @@
+/*
+ * Copyright 2021-2023 Brian L. Browning
+ * Copyright 2024 Genomics plc
+ *
+ * This file is part of the flare program.
+ *
+ * Licensed under the Apache License, Version 2.0 (the License);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an AS IS BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package admix;
 
 import blbutil.Const;
@@ -64,9 +83,10 @@ public class ParamUtils {
     /**
      * Returns a two-dimensional array obtained that is obtained by taking
      * the matrix product of {@code ParamUtils.q(params)}
-     * and {@code params.mu()}.
+     * and {@code mu}.
      * The {@code (i, j)}-th element of the returned array is
      * {@code params.mu()[i]*params.p()[i][j]/params.fixedParams().nPanelHaps()[j]}
+     * @param params the value of `mu`. This could either be the study mu or the sample specific mu.
      * @param params the parameters for a local ancestry analysis
      *
      * @return a two-dimensional array obtained that is obtained by taking
@@ -74,10 +94,9 @@ public class ParamUtils {
      * and {@code params.mu()}
      * @throws NullPointerException if {@code params == null}
      */
-   public  static double[][] qMu(ParamsInterface params) {
+   public static double[][] qMu(double[] mu, ParamsInterface params) {
         IntArray nPanelHaps = params.fixedParams().nPanelHaps();
         double[][] modP = params.p();
-        double[] mu = params.studyMu();
         double[] invNPanelHaps = new double[nPanelHaps.size()];
         for (int j=0, n=nPanelHaps.size(); j<n; ++j) {
             invNPanelHaps[j] = 1.0/nPanelHaps.get(j);
