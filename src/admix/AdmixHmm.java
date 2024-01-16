@@ -32,12 +32,12 @@ public class AdmixHmm {
 
     private final AdmixChromData chromData;
     private final ParamsInterface params;
+    private final AdmixHmmProbs hmmProbs;
     private final int nMarkers;
     private final int nTargHaps;
     private final int nAnc;
     private final int nPanels;
     private final float minAncProb;
-    private final double[][] qMu;
 
     private final AdmixStates states;
     private final short[][] refPanel;
@@ -77,12 +77,12 @@ public class AdmixHmm {
         }
         this.chromData = data.chromData();
         this.params = data.params();
+        this.hmmProbs = data.hmmProbs();
         this.nMarkers = chromData.targRefGT().nMarkers();
         this.nTargHaps = chromData.nTargHaps();
         this.nAnc = params.fixedParams().nAnc();
         this.nPanels = params.fixedParams().nRefPanels();
         this.minAncProb = params.fixedParams().par().em_anc_prob();
-        this.qMu = ParamUtils.qMu(params);
 
         this.states = new AdmixStates(data, ibsHaps);
         this.refPanel = new short[nMarkers][states.maxStates()];
@@ -170,14 +170,14 @@ public class AdmixHmm {
             throw new IndexOutOfBoundsException(String.valueOf(targHap));
         }
         int nHapStates = states.ibsStates(targHap, refPanel, nMismatches);
-        setBwdCheckPoints(nHapStates);
+        setBwdCheckPoints(targHap, nHapStates);
         fwdAlgAnc(targHap, nHapStates);
         estAnc.set(targHap, ancProbs);
     }
 
     private void fwdAlgRhoP(int nHapStates) {
         double[] ancSums = params.studyMu();
-        initFwd(fwd, nHapStates);
+        hmmProbs.initFwd(fwd, refPanel[0], nHapStates);
         int window = -1;
         int nextWindowStart = 0;
         int offset = -1;
@@ -185,7 +185,7 @@ public class AdmixHmm {
             if (m==nextWindowStart) {
                 offset = -1;
                 fillBwdWindow(++window, nHapStates);
-                nextWindowStart = Math.min(nextWindowStart+windowSize, nMarkers);
+                nextWindowStart = Math.min(nextWindowStart + windowSize, nMarkers);
             }
             ++offset;
             if (m>0) {
@@ -201,7 +201,7 @@ public class AdmixHmm {
 
     private void fwdAlgMuT(int nHapStates) {
         double[] ancSums = params.studyMu();
-        initFwd(fwd, nHapStates);
+        hmmProbs.initFwd(fwd, refPanel[0], nHapStates);
         int window = -1;
         int nextWindowStart = 0;
         int offset = -1;
@@ -209,7 +209,7 @@ public class AdmixHmm {
             if (m==nextWindowStart) {
                 offset = -1;
                 fillBwdWindow(++window, nHapStates);
-                nextWindowStart = Math.min(nextWindowStart+windowSize, nMarkers);
+                nextWindowStart = Math.min(nextWindowStart + windowSize, nMarkers);
             }
             ++offset;
             if (m>0) {
@@ -225,7 +225,7 @@ public class AdmixHmm {
 
     private void fwdAlgAnc(int targHap, int nHapStates) {
         double[] ancSums = params.studyMu();
-        initFwd(fwd, nHapStates);
+        hmmProbs.initFwd(targHap, fwd, refPanel[0], nHapStates);
         int window = -1;
         int nextWindowStart = 0;
         int offset = -1;
@@ -233,7 +233,7 @@ public class AdmixHmm {
             if (m==nextWindowStart) {
                 offset = -1;
                 fillBwdWindow(targHap, ++window, nHapStates);
-                nextWindowStart = Math.min(nextWindowStart+windowSize, nMarkers);
+                nextWindowStart = Math.min(nextWindowStart + windowSize, nMarkers);
             }
             ++offset;
             fwdSums[m] = hmmUpdater.fwdUpdate(targHap, m, fwd, ancSums, refPanel[m],
@@ -242,13 +242,22 @@ public class AdmixHmm {
         }
     }
 
-    private void initFwd(double[][] fwd, int nHapStates) {
-        short[] panel = refPanel[0];
-        for (int i=0; i<nAnc; ++i) {
-            for (int h=0; h<nHapStates; ++h) {
-                fwd[i][h] = qMu[i][panel[h]];
+    private void setBwdCheckPoints(int targHap, int nHapStates) {
+        int windowIndex = nWindows;
+        AdmixUtils.fill(bwd, 1.0f/(nAnc*nHapStates));
+        bwdSums[nMarkers-1] = 1.0;
+        AdmixUtils.copy(bwd, bwdCheckPts[--windowIndex], nHapStates);
+        int nextCheckPt = ((nWindows-1)*windowSize) - 1; // checkpoint is last marker in window
+        for (int m=nMarkers-2; m>=0; --m) {
+            int mP1 = m+1;
+            bwdSums[m] = hmmUpdater.bwdUpdate(targHap, m, bwd, refPanel[mP1],
+                    nMismatches[mP1], nHapStates);
+            if (m==nextCheckPt) {
+                AdmixUtils.copy(bwd, bwdCheckPts[--windowIndex], nHapStates);
+                nextCheckPt -= windowSize;
             }
         }
+        assert windowIndex==0;
     }
 
     private void setBwdCheckPoints(int nHapStates) {

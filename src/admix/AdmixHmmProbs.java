@@ -165,6 +165,67 @@ public class AdmixHmmProbs {
     }
 
     /**
+     * Initialize the HMM forward probabilities using per-sample ancestry
+     * proportions. The forward probabilities are a two-dimensional array
+     * whose rows correspond to ancestry and whose columns correspond to
+     * reference haplotypes.
+     * @param targHap the target haplotype
+     * @param fwd the arrays in which the forward probabilities will be stored
+     * @param refHapToPanel a map from reference haplotype to haplotype panel
+     * @param nRefHaps the number of reference haplotypes
+     * @throws IndexOutOfBoundsException
+     * {@code (targHap < 0 || targHap >= 2*this.nTargSamples())}
+     * @throws IndexOutOfBoundsException if {@code fwd.length < this.nAnc()}
+     * @throws IndexOutOfBoundsException if there is an {@code i}
+     * satisfying {@code (0 <= i && i < fwd.length)} such that
+     * {@code (fwd[i].length < nHapStates)}
+     * @throws IndexOutOfBoundsException if
+     * {@code (refHapToPanel.length < nHapStates)}
+     * @throws NullPointerException if {@code (fwd == null)} or if there
+     * is an {@code i} satisfying {@code (0 <= i && i < fwd.length)} such
+     * that {@code (fwd[i] == null)}
+     * @throws NullPointerException if {@code (refHapToPanel == null)}
+     */
+    public void initFwd(int targHap, double[][] fwd, short[] refHapToPanel,
+            int nRefHaps) {
+        int nAnc = params.fixedParams().nAnc();
+        int sample = targHap >> 1;
+        for (int i=0; i<nAnc; ++i) {
+            for (int h=0; h<nRefHaps; ++h) {
+                fwd[i][h] = sampleMu[sample][i]*q[i][refHapToPanel[h]];
+            }
+        }
+    }
+
+   /**
+     * Initialize the HMM forward probabilities using study ancestry
+     * proportions. The forward probabilities are a two-dimensional array
+     * whose rows correspond to ancestry and whose columns correspond to
+     * reference haplotypes.
+     * @param fwd the arrays in which the forward probabilities will be stored
+     * @param refHapToPanel a map from reference haplotype to haplotype panel
+     * @param nRefHaps the number of reference haplotypes
+     * @throws IndexOutOfBoundsException if {@code fwd.length < this.nAnc()}
+     * @throws IndexOutOfBoundsException if there is an {@code i}
+     * satisfying {@code (0 <= i && i < fwd.length)} such that
+     * {@code (fwd[i].length < nHapStates)}
+     * @throws IndexOutOfBoundsException if
+     * {@code (refHapToPanel.length < nHapStates)}
+     * @throws NullPointerException if {@code (fwd == null)} or if there
+     * is an {@code i} satisfying {@code (0 <= i && i < fwd.length)} such
+     * that {@code (fwd[i] == null)}
+     * @throws NullPointerException if {@code (refHapToPanel == null)}
+     */
+    public void initFwd(double[][] fwd, short[] refHapToPanel, int nRefHaps) {
+        int nAnc = params.fixedParams().nAnc();
+        for (int i=0; i<nAnc; ++i) {
+            for (int h=0; h<nRefHaps; ++h) {
+                fwd[i][h] = studyMu[i]*q[i][refHapToPanel[h]];
+            }
+        }
+    }
+
+    /**
      * Set shift parameter for each reference panel for the HMM forward update
      * using per-sample ancestry proportions.
      * @param targHap the target haplotype
