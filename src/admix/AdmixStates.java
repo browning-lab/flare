@@ -22,9 +22,11 @@ import java.util.PriorityQueue;
 import java.util.Random;
 import java.util.stream.IntStream;
 import beagleutil.CompHapSegment;
+import blbutil.Utilities;
 import ints.IntArray;
 import ints.IntList;
 import ints.WrappedIntArray;
+import java.util.Arrays;
 import vcf.Steps;
 import vcf.RefGT;
 
@@ -166,7 +168,7 @@ public final class AdmixStates {
             ibsHaps.addIbsHaps(hapListIndex, step, this);
         }
         if (q.isEmpty()) {
-            fillQWithRandomHaps(hapListIndex);
+            fillQWithRandomHaps(hapList.get(hapListIndex));
         }
     }
 
@@ -233,7 +235,7 @@ public final class AdmixStates {
 
     private int copyData(int hap, short[][] refPanel, byte[][] nMismatches) {
         int nCompHaps = q.size();
-        // flushQ();    // xxx uncomment this line to fix bug and change regression test
+        // flushQ();    // xxx uncommenting decreases accuracy and changes the regression test
         initializeCopy(nCompHaps);
         for (int m=0; m<nMarkers; ++m) {
             short[] panel = refPanel[m];
@@ -269,20 +271,29 @@ public final class AdmixStates {
         }
     }
 
-    private void fillQWithRandomHaps(int hapListIndex) {
+    private void fillQWithRandomHaps(int hap) {
         assert q.isEmpty();
-        int nRefHaps = chromData.nRefHaps();
-        int nStates = Math.min(nRefHaps, maxStates);
-        Random rand = new Random(chromData.par().seed() + hapListIndex);
         int ibsStep = 0;
         int startMarker = 0;
         int compHapIndex = 0;
-        for (int j=0; j<nStates; ++j) {
-            int h = nTargHaps + rand.nextInt(nRefHaps);
-            if (hapToLastIbsStep.get(h, NIL)==NIL) {
-                q.add(new CompHapSegment(h, startMarker, ibsStep, compHapIndex++));
-                hapToLastIbsStep.put(h, startMarker);
-            }
+        int[] randomRefHaps = randomRefHaps(hap);
+        for (int h : randomRefHaps) {
+            assert (h!=hap && hapToLastIbsStep.get(h, NIL)==NIL);
+            compHapHap[compHapIndex].add(h);
+            q.add(new CompHapSegment(h, startMarker, ibsStep, compHapIndex++));
+            hapToLastIbsStep.put(h, ibsStep);
         }
+    }
+
+    private int[] randomRefHaps(int hap) {
+        Random rand = new Random(chromData.par().seed() + hap);
+        int[] haps = IntStream.range(nTargHaps, targRefGT.nHaps())
+                .filter(h -> (h!=hap))
+                .toArray();
+        Utilities.shuffle(haps, maxStates, rand);
+        if (haps.length > maxStates) {
+            haps = Arrays.copyOf(haps, maxStates);
+        }
+        return haps;
     }
 }
