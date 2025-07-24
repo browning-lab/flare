@@ -4,7 +4,7 @@ The **flare** program uses a set of reference haplotypes
 to infer the ancestry of each allele in a set of admixed study samples.
 The **flare** program is fast, accurate, and memory-efficient.
 
-Last updated: July 24, 2024  
+Last updated: July 24, 2025  
 Current version: 0.5.3
 
 ## Contents
