@@ -4,8 +4,8 @@ The **flare** program uses a set of reference haplotypes
 to infer the ancestry of each allele in a set of admixed study samples.
 The **flare** program is fast, accurate, and memory-efficient.
 
-Last updated: October 29, 2024  
-Current version: 0.5.2
+Last updated: July 24, 2024  
+Current version: 0.5.3
 
 ## Contents
 
@@ -38,13 +38,12 @@ with the commands:
     git clone https://github.com/browning-lab/flare.git
     javac -cp flare/src/ flare/src/admix/AdmixMain.java
     jar cfe flare.jar admix/AdmixMain -C flare/src/ ./
-    jar -i flare.jar
 
 [Contents](#contents)
 
 ## Running flare
 
-The **flare** program requires Java version 1.8 (or a later version). Use of an
+The **flare** program requires Java version 1.11 (or a later version). Use of an
 earlier Java version will produce an "Unsupported Class Version" error.
 
 The command:

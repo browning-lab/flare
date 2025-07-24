@@ -34,8 +34,8 @@ import java.util.Optional;
 public class AdmixMain {
 
     static final String EXECUTABLE = "flare.jar";
-    static final String REVISION = "flare.29Oct24.cc6.jar";
-    static final String PROGRAM = EXECUTABLE + "  [ version 0.5.2, 29Oct24.cc6 ]";
+    static final String REVISION = "flare.__REV__.jar";
+    static final String PROGRAM = EXECUTABLE + "  [ version 0.5.3, __REV__ ]";
     static final String COPYRIGHT = "Copyright (C) 2021-2023 Brian L. Browning";
     static final String COMMAND = "java -jar " + EXECUTABLE;
 
