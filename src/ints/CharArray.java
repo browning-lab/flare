@@ -89,76 +89,25 @@ public final class CharArray implements IntArray {
 
     /**
      * Constructs a new {@code CharArray} instance from the specified data.
-     * @param ia an array of nonnegative integers
-     * @param valueSize the exclusive end of the range of non-negative
-     * array values
-     * @throws IllegalArgumentException if
-     * {@code (valueSize < 1) || (valueSize >= (Character.MAX_VALUE + 1))}
-     * @throws IllegalArgumentException if
-     * {@code (ia[j] < 0 || ia[j] > valueSize)} for any index {@code j}
-     * satisfying  {@code (j >= 0 && j < ia.length)}
-     * @throws NullPointerException if {@code ia == null}
-     */
-    public CharArray(int[] ia, int valueSize) {
-        if (valueSize < 1 || valueSize > Character.MAX_VALUE+1) {
-            throw new IllegalArgumentException(String.valueOf(valueSize));
-        }
-        this.ca = new char[ia.length];
-        for (int j=0; j<ia.length; ++j) {
-            if (ia[j]<0 || ia[j]>=valueSize) {
-                throw new IllegalArgumentException(String.valueOf(ia[j]));
-            }
-            this.ca[j] = (char) ia[j];
-        }
-    }
-
-    /**
-     * Constructs a new {@code CharArray} instance from the specified data.
-     * @param il an list of nonnegative integer
-     * @param valueSize the exclusive end of the range of non-negative
-     * array values
-     * @throws IllegalArgumentException if
-     * {@code (valueSize < 1) || (valueSize >= (Character.MAX_VALUE + 1))}
-     * @throws IllegalArgumentException if
-     * {@code (ia[j] < 0 || ia[j] > valueSize)} for any index {@code j}
-     * satisfying  {@code (j >= 0 && j < ia.length)}
-     * @throws NullPointerException if {@code il == null}
-     */
-    public CharArray(IntList il, int valueSize) {
-        if (valueSize < 1 || valueSize > Character.MAX_VALUE+1) {
-            throw new IllegalArgumentException(String.valueOf(valueSize));
-        }
-        this.ca = new char[il.size()];
-        for (int j=0; j<ca.length; ++j) {
-            int value = il.get(j);
-            if (value<0 || value>=valueSize) {
-                throw new IllegalArgumentException(String.valueOf(value));
-            }
-            this.ca[j] = (char) value;
-        }
-    }
-
-    /**
-     * Constructs a new {@code CharArray} instance from the
-     * specified data.
      * @param ia an array of integer values between 0 and
      * {@code Character.MAX_VALUE} inclusive
-     * @param to the first element to be included (inclusive)
-     * @param from the last element to be included (exclusive)
+     * @param from the first element to be included (inclusive)
+     * @param to the last element to be included (exclusive)
      * @throws IllegalArgumentException if
-     * {@code (ia[j] < 0 || ia[j] > Character.MAX_VALUE)} for any index
-     * {@code j} satisfying  {@code (j >= from && j < to)}
-     * @throws IndexOutOfBoundsException if {@code (from < 0 || to > ia.length)}
-     * @throws NegativeArraySizeException if {@code to > from}
-     * @throws NullPointerException if {@code ia == null}
+     * {@code ((ia[j] < 0) || (ia[j] > Character.MAX_VALUE))} for any index
+     * {@code j} satisfying  {@code ((from <= j) && (j < to))}
+     * @throws IndexOutOfBoundsException if
+     * {@code ((from < 0) || (to > ia.length))}
+     * @throws NegativeArraySizeException if {@code from > to}
+     * @throws NullPointerException if {@code (ia == null)}
      */
-    public CharArray(int[] ia, int to, int from) {
-        this.ca = new char[from - to];
-        for (int j=to; j<from; ++j) {
+    public CharArray(int[] ia, int from, int to) {
+        this.ca = new char[to - from];
+        for (int j=from; j<to; ++j) {
             if (ia[j] < 0 || ia[j] > Character.MAX_VALUE) {
                 throw new IllegalArgumentException(String.valueOf(ia[j]));
             }
-            ca[j - to] = (char) ia[j];
+            ca[j - from] = (char) ia[j];
         }
     }
 
@@ -170,10 +119,11 @@ public final class CharArray implements IntArray {
      * @param to the last element to be included (exclusive)
      * @throws IllegalArgumentException if
      * {@code (il.get(j) < 0 || il.get(j) > Character.MAX_VALUE)} for any index {@code j}
-     * satisfying  {@code (j >= from && j < to)}
-     * @throws IndexOutOfBoundsException if {@code from < 0 || to > il.length}
-     * @throws NegativeArraySizeException if {@code to > from}
-     * @throws NullPointerException if {@code il == null}
+     * satisfying  {@code ((from <= j) && (j < to))}
+     * @throws IndexOutOfBoundsException if
+     * {@code ((from < 0) || (to > il.length))}
+     * @throws NegativeArraySizeException if {@code (from > to)}
+     * @throws NullPointerException if {@code (il == null)}
      */
     public CharArray(IntList il, int from, int to) {
         this.ca = new char[to - from];

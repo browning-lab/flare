@@ -139,15 +139,11 @@ public interface GTRec extends IntArray {
      * @throws NullPointerException if {@code gtRec == null}
      */
     static String toVcfRec(GTRec gtRec) {
-        Marker marker = gtRec.marker();
         StringBuilder sb = new StringBuilder(100);
-        MarkerUtils.appendFirst7Fields(marker, sb);
-        sb.append(Const.tab);
-        sb.append(marker.info());  // INFO
-        sb.append(Const.tab);
-        sb.append("GT");           // FORMAT
+        MarkerUtils.appendFirst8Fields(gtRec.marker(), sb);
+        sb.append("\tGT");           // FORMAT
         for (int s=0, n=gtRec.samples().size(); s<n; ++s) {
-            int hap1 = s << 1;
+            int hap1 = s<<1;
             int a1 = gtRec.get(hap1);
             int a2 = gtRec.get(hap1 | 0b1);
             sb.append(Const.tab);

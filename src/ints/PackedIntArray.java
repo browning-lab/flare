@@ -49,11 +49,11 @@ public final class PackedIntArray implements IntArray {
      * @param ia an array of nonnegative integer values
      * @param valueSize the exclusive end of the range of non-negative
      * array values
-     * @throws IllegalArgumentException if {@code valueSize < 1}
+     * @throws IllegalArgumentException if {@code (valueSize < 1)}
      * @throws IllegalArgumentException if
-     * {@code (ia[j] < 0 || ia[j] > valueSize)} for any index {@code j}
-     * satisfying  {@code (j >= 0 && j < ia.length)}
-     * @throws NullPointerException if {@code ia == null}
+     * {@code ((ia[j] < 0) || (ia[j] > valueSize))} for any index {@code j}
+     * satisfying  {@code ((0 <= j) && (j < ia.length))}
+     * @throws NullPointerException if {@code (ia == null)}
      */
     public PackedIntArray(int[] ia, int valueSize) {
         if (valueSize < 1) {
@@ -79,11 +79,11 @@ public final class PackedIntArray implements IntArray {
      * @param il an array of nonnegative integer values
      * @param valueSize the exclusive end of the range of non-negative
      * array values
-     * @throws IllegalArgumentException if {@code valueSize < 1}
+     * @throws IllegalArgumentException if {@code (valueSize < 1)}
      * @throws IllegalArgumentException if
-     * {@code (il.get(j) < 0 || il.get(j) > valueSize)} for any index {@code j}
-     * satisfying  {@code (j >= 0 && j < il.size())}
-     * @throws NullPointerException if {@code il == null}
+     * {@code ((il.get(j) < 0) || (il.get(j) > valueSize))} for any
+     * index {@code j} satisfying  {@code ((0 <= j) && (j < il.size()))}
+     * @throws NullPointerException if {@code (il == null)}
      */
     public PackedIntArray(IntList il, int valueSize) {
         if (valueSize < 1) {

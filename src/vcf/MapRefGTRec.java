@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Brian L. Browning
+ * Copyright 2021-2023 Brian L. Browning
  *
  * This file is part of the flare program.
  *
@@ -17,22 +17,24 @@
  */
 package vcf;
 
+import blbutil.BooleanArray;
+import ints.IndexArray;
 import ints.IntArray;
 import java.util.Arrays;
 import java.util.stream.IntStream;
 
 /**
- * <p>Class {@code SeqCodedRefGT}  represents phased, non-missing
+ * <p>Class {@code MapRefGTRec}  represents phased, non-missing
  * genotypes for a list of reference samples at a single marker.
  * Genotype emission probabilities are determined by the sample
  * genotypes.
  * </p>
- * <p>Instances of class {@code SeqCodedRefGT} are immutable.
+ * <p>Instances of class {@code MapRefGTRec} are immutable.
  * </p>
  *
  * @author Brian L. Browning {@code <browning@uw.edu>}
  */
-public class SeqCodedRefGTRec implements RefGTRec {
+public class MapRefGTRec implements RefGTRec {
 
     private final Marker marker;
     private final Samples samples;
@@ -41,20 +43,21 @@ public class SeqCodedRefGTRec implements RefGTRec {
 
     @Override
     public long estBytes() {
-        int overhead = 2*12; // assume 12 bytes overhead per "owned" object
-        long estBytes = overhead + 4*8;  // assume 8 bytes per reference
-        estBytes += (1 + hapToSeq.size())*4; // 4 bytes per array to store length;
+        // Note: The same hapToSeq array can be counted in multiple records
+        int overhead = 2*12;                    // assume 12 bytes overhead per "owned" object
+        long estBytes = overhead + 4*8;         // assume 8 bytes per reference
+        estBytes += (1 + hapToSeq.size())*4;    // 4 bytes per array to store length;
         estBytes += (1 + seqToAllele.size())*4; // 4 bytes per array to store length;
         return estBytes;
     }
 
     /**
-     * Creates a new {@code SeqCodedRefGT} instance with phased,
+     * Creates a new {@code HapRefGTRec} instance with phased,
      * non-missing genotypes from the specified marker, samples,
      * and haplotype alleles.  The contract for the constructed object
      * is undefined if any element of {@code hapToSeq} is negative or
-     * greater than or equal to {@code seqToAllele.size()} or if any element
-     * of {@code seqToAllele} is negative or greater than or equal to
+     * greater than or equal to {@code hapToAllele.size()} or if any element
+     * of {@code hapToAllele} is negative or greater than or equal to
      * {@code marker.nAlleles()}.
      *
      * @param marker the marker
@@ -68,7 +71,7 @@ public class SeqCodedRefGTRec implements RefGTRec {
      * {@code hapToSeq.size() != 2*samples.size()}
      * @throws NullPointerException if any parameter is {@code null}
      */
-    public SeqCodedRefGTRec(Marker marker, Samples samples, IntArray hapToSeq,
+    public MapRefGTRec(Marker marker, Samples samples, IntArray hapToSeq,
         IntArray seqToAllele) {
         if (hapToSeq.size() != 2*samples.size()) {
             throw new IllegalArgumentException("inconsistent data");
@@ -113,7 +116,7 @@ public class SeqCodedRefGTRec implements RefGTRec {
     }
 
     @Override
-    public int[][] hapIndices() {
+    public int[][] alleleToHaps() {
         int[] alCnts = alleleCounts();
         int majAllele = 0;
         for (int al=1; al<alCnts.length; ++al) {
@@ -138,12 +141,25 @@ public class SeqCodedRefGTRec implements RefGTRec {
     }
 
     @Override
-    public boolean isAlleleCoded() {
+    public IndexArray hapToAllele() {
+        int[] alleles = IntStream.range(0, size())
+                .map(h -> seqToAllele.get(hapToSeq.get(h)))
+                .toArray();
+        return new IndexArray(alleles, marker.nAlleles());
+    }
+
+    @Override
+    public int nullRowAlleleCnt() {
+        return RefGTRec.nonNullCnt(alleleToHaps());
+    }
+
+    @Override
+    public boolean isAlleleRecord() {
         return false;
     }
 
     @Override
-    public int majorAllele() {
+    public int nullRow() {
         return majorAllele(alleleCounts());
     }
 
@@ -168,23 +184,7 @@ public class SeqCodedRefGTRec implements RefGTRec {
 
     @Override
     public int alleleCount(int allele) {
-        int[] alCnts = alleleCounts();
-        if (allele==majorAllele(alCnts)) {
-            throw new IllegalArgumentException("major allele");
-        }
-        else {
-            return alCnts[allele];
-        }
-    }
-
-    @Override
-    public int allele1(int sample) {
-        return seqToAllele.get(hapToSeq.get(sample<<1));
-    }
-
-    @Override
-    public int allele2(int sample) {
-        return seqToAllele.get(hapToSeq.get((sample<<1) | 0b1));
+        return alleleCounts()[allele];
     }
 
     @Override
@@ -193,16 +193,8 @@ public class SeqCodedRefGTRec implements RefGTRec {
     }
 
     @Override
-    public int[] alleles() {
-        return IntStream.range(0, hapToSeq.size())
-                .map(h -> get(h))
-                .toArray();
-    }
-
-
-    @Override
-    public int hapIndex(int allele, int copy) {
-        int[][] hapIndices = hapIndices();
+    public int nonNullRowHap(int allele, int copy) {
+        int[][] hapIndices = alleleToHaps();
         if (hapIndices[allele]==null) {
             throw new IllegalArgumentException("major allele");
         }
@@ -214,19 +206,6 @@ public class SeqCodedRefGTRec implements RefGTRec {
     @Override
     public boolean isCarrier(int allele, int hap) {
         return get(hap)==allele;
-    }
-
-    /**
-     * Returns the data represented by {@code this} as a VCF
-     * record with a GT format field. The returned VCF record
-     * will have missing QUAL and INFO fields, will have "PASS"
-     * in the filter field, and will have a GT format field.
-     * @return the data represented by {@code this} as a VCF
-     * record with a GT format field
-     */
-    @Override
-    public String toString() {
-        return GTRec.toVcfRec(this);
     }
 
     @Override
@@ -248,6 +227,26 @@ public class SeqCodedRefGTRec implements RefGTRec {
                 return seqToAllele;
             default:
                 throw new IndexOutOfBoundsException(String.valueOf(index));
+        }
+    }
+
+    @Override
+    public String toString() {
+        return toVcfRecord();
+    }
+
+    @Override
+    public String toVcfRecord() {
+        return RefGTRec.toString(this);
+    }      
+    
+    @Override
+    public String toVcfRecord(BooleanArray isHaploid) {
+        if (isHaploid==null) {
+            return RefGTRec.toString(this);
+        }
+        else {
+            return RefGTRec.toString(this, isHaploid);
         }
     }
 }

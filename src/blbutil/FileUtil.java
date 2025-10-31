@@ -43,36 +43,6 @@ public class FileUtil {
         // private constructor prevents instantiation
     }
 
-    /**
-     * Creates and returns a new empty temporary file in the specified
-     * directory.  The temporary file will be deleted when the JVM terminates
-     * if the JVM terminates normally.
-     * @param prefix a prefix of at least 3 characters for the temporary
-     * filename
-     * @param directory the directory in which the temporary file is to
-     * be created.
-     * @return a new empty temporary file in the specified directory.
-     * @throws NullPointerException if
-     * {@code prefix == null || directory == null}
-     */
-    public static File tempFile(String prefix, File directory) {
-        if (prefix==null) {
-            throw new NullPointerException(String.class.toString());
-        }
-        if (directory==null) {
-            throw new NullPointerException(File.class.toString());
-        }
-        File tmpFile = null;
-        try {
-            tmpFile = File.createTempFile(prefix, null, directory);
-            tmpFile.deleteOnExit();
-        }
-        catch (IOException ex) {
-            Utilities.exit(ex, "Error opening file");
-        }
-        return tmpFile;
-    }
-
    /**
      * Returns a {@code java.io.RandomAccessFile} to read from or optionally
      * to write to the specified file.  If the input stream cannot
@@ -101,7 +71,7 @@ public class FileUtil {
      * will exit.
      * @param file a file
      * @return an buffered {@code java.io.InputStream}
-     * @throws NullPointerException if {@code file == null}
+     * @throws NullPointerException if {@code (file == null)}
      */
     public static InputStream bufferedInputStream(File file) {
         InputStream is = null;
@@ -128,7 +98,8 @@ public class FileUtil {
         try {
             os = new BufferedOutputStream(new FileOutputStream(file));
         } catch (FileNotFoundException ex) {
-            Utilities.exit(ex, "Error: file not found [" + file + "]");
+            Utilities.exit(ex, "Error: file \"" + file
+                    + "\" cannot be opened for writing");
         }
         return os;
     }
@@ -329,6 +300,48 @@ public class FileUtil {
     }
 
     /**
+     * Skips and discards the specified number of bytes of data from the
+     * specified input stream. No bytes are skipped if the specified number
+     * of bytes is negative or 0. The method blocks until the specified
+     * number of bytes have been skipped or an {@code IOException} exception
+     * is thrown.
+     *
+     * The Java Virtual Machine will exit with an error message if the end
+     * of file is reached before the specified number of bytes are skipped
+     * or if an {@code IOException} is thrown.
+     *
+     * @param is an input stream
+     * @param nBytes the number of bytes to skip
+     * @param source a string description of the input stream source
+     */
+    public static void skipNBytes(InputStream is, long nBytes, String source) {
+        // Modified version of JDK 12 InputStream.skipNBytes() implementation
+        try {
+            while (nBytes > 0) {
+                long ns = is.skip(nBytes);
+                if (ns > 0 && ns <= nBytes) {
+                    // adjust number to skip
+                    nBytes -= ns;
+                } else if (ns == 0) {
+                    // no bytes skipped
+                    // read one byte to check for EOS
+                    if (is.read() == -1) {
+                        Utilities.exit("Unexepcted EOF: " + source);
+                    }
+                    // one byte read so decrement number to skip
+                    nBytes--;
+                } else {
+                    // skipped negative or too many bytes
+                    assert false;
+                    throw new IllegalStateException(source);
+                }
+            }
+        } catch (IOException ex) {
+            Utilities.exit(ex, "Error skipping bytes in " + source);
+        }
+    }
+
+    /**
      * Returns a temporary {@code File} that will be deleted when
      * the Java virtual machine exits.
      *
@@ -348,5 +361,35 @@ public class FileUtil {
             Utilities.exit(e, "Exception thrown by createTempFile: ");
         }
         return tempFile;
+    }
+
+    /**
+     * Creates and returns a new empty temporary file in the specified
+     * directory.  The temporary file will be deleted when the JVM terminates
+     * if the JVM terminates normally.
+     * @param prefix a prefix of at least 3 characters for the temporary
+     * filename
+     * @param directory the directory in which the temporary file is to
+     * be created.
+     * @return a new empty temporary file in the specified directory.
+     * @throws NullPointerException if
+     * {@code prefix == null || directory == null}
+     */
+    public static File tempFile(String prefix, File directory) {
+        if (prefix==null) {
+            throw new NullPointerException(String.class.toString());
+        }
+        if (directory==null) {
+            throw new NullPointerException(File.class.toString());
+        }
+        File tmpFile = null;
+        try {
+            tmpFile = File.createTempFile(prefix, null, directory);
+            tmpFile.deleteOnExit();
+        }
+        catch (IOException ex) {
+            Utilities.exit(ex, "Error opening file");
+        }
+        return tmpFile;
     }
 }

@@ -18,20 +18,23 @@
 package bref;
 
 import blbutil.FileUtil;
-import blbutil.Filter;
-import blbutil.SampleFileIt;
 import blbutil.Utilities;
+import blbutil.VcfFileIt;
 import java.io.BufferedInputStream;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.NoSuchElementException;
+import java.util.function.Predicate;
+import vcf.FilterUtil;
 import vcf.Marker;
 import vcf.RefGTRec;
 import vcf.Samples;
+import vcf.VcfHeader;
 
 /**
  * <p>Class {@code Bref3It} represents  an iterator whose {@code next()} which
@@ -45,12 +48,13 @@ import vcf.Samples;
  *
  * @author Brian L. Browning {@code <browning@uw.edu>}
  */
-public final class Bref3It implements SampleFileIt<RefGTRec> {
+public final class Bref3It implements VcfFileIt<RefGTRec> {
 
-    private final File brefFile;
+    private final String source;
     private final DataInputStream dataIn;
     private final Bref3Reader bref3Reader;
     private final Deque<RefGTRec> buffer;
+    private final VcfHeader vcfHeader;
 
     /**
      * Constructs a new {@code Bref3It} instance.
@@ -61,7 +65,7 @@ public final class Bref3It implements SampleFileIt<RefGTRec> {
      * line of the specified bref file
      */
     public Bref3It(File brefFile) {
-        this(brefFile, Filter.acceptAllFilter(), Filter.acceptAllFilter());
+        this(brefFile, FilterUtil.acceptAllPredicate(), FilterUtil.acceptAllPredicate());
     }
 
     /**
@@ -76,8 +80,8 @@ public final class Bref3It implements SampleFileIt<RefGTRec> {
      * @throws NullPointerException if
      * {@code (sampleFilter == null) || (markerFilter == null)}
      */
-    public Bref3It(File brefFile, Filter<String> sampleFilter,
-            Filter<Marker> markerFilter) {
+    public Bref3It(File brefFile, Predicate<String> sampleFilter,
+            Predicate<Marker> markerFilter) {
         InputStream dis;
         if (brefFile==null) {
             dis = new BufferedInputStream(System.in);
@@ -85,11 +89,28 @@ public final class Bref3It implements SampleFileIt<RefGTRec> {
         else {
             dis = FileUtil.bufferedInputStream(brefFile);
         }
-        this.brefFile = brefFile;
+        this.source = brefFile==null ? "stdin" : brefFile.toString();
         this.dataIn = new DataInputStream(dis);
         this.bref3Reader = new Bref3Reader(brefFile, dataIn, sampleFilter, markerFilter);
         this.buffer = new ArrayDeque<>(500);
         bref3Reader.readBlock(dataIn, buffer);
+        this.vcfHeader = vcfHeader(bref3Reader.samples());
+    }
+
+    private VcfHeader vcfHeader(Samples samples) {
+        String[] sampleIds = samples.ids();
+        boolean[] isDiploid = new boolean[sampleIds.length];
+        Arrays.fill(isDiploid, true);
+        String[] lines = new String[2];
+        lines[0] = "##fileformat=bref3";
+        StringBuilder sb = new StringBuilder(80 + 8*sampleIds.length);
+        sb.append(VcfHeader.HEADER_PREFIX);
+        for (String id : sampleIds) {
+            sb.append('\t');
+            sb.append(id);
+        }
+        lines[1] = sb.toString();
+        return new VcfHeader(source, lines, isDiploid);
     }
 
     /**
@@ -130,8 +151,8 @@ public final class Bref3It implements SampleFileIt<RefGTRec> {
     }
 
     @Override
-    public File file() {
-        return brefFile;
+    public String source() {
+        return source;
     }
 
     @Override
@@ -140,11 +161,16 @@ public final class Bref3It implements SampleFileIt<RefGTRec> {
     }
 
     @Override
+    public VcfHeader vcfHeader() {
+        return vcfHeader;
+    }
+
+    @Override
     public String toString() {
         StringBuilder sb = new StringBuilder(80);
         sb.append(this.getClass().toString());
         sb.append(" : ");
-        sb.append(brefFile);
+        sb.append(source);
         return sb.toString();
     }
 }

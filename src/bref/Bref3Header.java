@@ -18,11 +18,11 @@
 package bref;
 
 import blbutil.Const;
-import blbutil.Filter;
 import blbutil.Utilities;
 import java.io.DataInput;
 import java.io.File;
 import java.io.IOException;
+import java.util.function.Predicate;
 import java.util.stream.IntStream;
 import vcf.Samples;
 
@@ -58,7 +58,7 @@ public class Bref3Header {
      * @throws NullPointerException if
      * {@code (dataIn == null) || (sampleFilter == null)}
      */
-    public Bref3Header(File source, DataInput dataIn, Filter<String> sampleFilter) {
+    public Bref3Header(File source, DataInput dataIn, Predicate<String> sampleFilter) {
         String tmpProgramString = null;
         String[] tmpSampleIds = null;
         try {
@@ -87,9 +87,9 @@ public class Bref3Header {
         }
     }
 
-    private static int[] filteredSampleIndices(String[] ids, Filter<String> filter) {
+    private static int[] filteredSampleIndices(String[] ids, Predicate<String> filter) {
         return IntStream.range(0, ids.length)
-                .filter(j -> filter.accept(ids[j]))
+                .filter(j -> filter.test(ids[j]))
                 .toArray();
     }
 
@@ -147,7 +147,7 @@ public class Bref3Header {
             ids[j] = sampleIds[sampleIndices[j]];
             isDiploid[j] = true;
         }
-        return Samples.fromIds(ids, isDiploid);
+        return new Samples(ids, isDiploid);
     }
 
     /**

@@ -90,69 +90,17 @@ public final class UnsignedByteArray implements IntArray {
     }
 
     /**
-     * Constructs a new {@code UnsignedByteArray} instance from
-     * the specified data.
-     * @param ia an array of nonnegative  integer values
-     * @param valueSize the exclusive end of the range of non-negative
-     * array values
-     * @throws IllegalArgumentException if {@code valueSize < 1 || valueSize > 256}
-     * @throws IllegalArgumentException if
-     * {@code (ia[j] < 0 || ia[j] > valueSize)} for any index {@code j}
-     * satisfying  {@code (j >= 0 && j < ia.length)}
-     * @throws NullPointerException if {@code ia == null}
-     */
-    public UnsignedByteArray(int[] ia, int valueSize) {
-        if (valueSize < 1 || valueSize > 256) {
-            throw new IllegalArgumentException(String.valueOf(valueSize));
-        }
-        this.ba = new byte[ia.length];
-        for (int j=0; j<ia.length; ++j) {
-            if (ia[j]<0 || ia[j]>=valueSize) {
-                throw new IllegalArgumentException(String.valueOf(ia[j]));
-            }
-            this.ba[j] = (byte) ia[j];
-        }
-    }
-
-    /**
-     * Constructs a new {@code UnsignedByteArray} instance from
-     * the specified data.
-     * @param il an list of nonnegative integers between 0 and 255 inclusive
-     * @param valueSize the exclusive end of the range of non-negative
-     * array values
-     * @throws IllegalArgumentException if
-     * {@code (valueSize < 1) || (valueSize > 256)}
-     * @throws IllegalArgumentException if
-     * {@code (ia[j] < 0 || ia[j] > valueSize)} for any index {@code j}
-     * satisfying  {@code (j >= 0 && j < ia.length)}
-     * @throws NullPointerException if {@code il == null}
-     */
-    public UnsignedByteArray(IntList il, int valueSize) {
-        if (valueSize < 1 || valueSize > 256) {
-            throw new IllegalArgumentException(String.valueOf(valueSize));
-        }
-        this.ba = new byte[il.size()];
-        for (int j=0; j<ba.length; ++j) {
-            int value = il.get(j);
-            if (value<0 || value>=valueSize) {
-                throw new IllegalArgumentException(String.valueOf(value));
-            }
-            this.ba[j] = (byte) value;
-        }
-    }
-
-    /**
      * Constructs a new {@code UnsignedByteArray} instance from the
      * specified data.
      * @param ia an array of integer values between 0 and 255 inclusive
      * @param from the first element to be included (inclusive)
      * @param to the last element to be included (exclusive)
      * @throws IllegalArgumentException if
-     * {@code (ia[j] < 0 || ia[j] > 255)} for any index {@code j}
+     * {@code ((ia[j] < 0) || (ia[j] > 255))} for any index {@code j}
      * satisfying {@code (j >= from && j < to)}
-     * @throws IndexOutOfBoundsException if {@code (from < 0 || to > ia.length)}
-     * @throws NegativeArraySizeException if {@code to > from}
-     * @throws NullPointerException if {@code ia == null}
+     * @throws IndexOutOfBoundsException if {@code ((from < 0) || (to > ia.length))}
+     * @throws NegativeArraySizeException if {@code (to > from)}
+     * @throws NullPointerException if {@code (ia == null)}
      */
     public UnsignedByteArray(int[] ia, int from, int to) {
         this.ba = new byte[to - from];
@@ -171,11 +119,12 @@ public final class UnsignedByteArray implements IntArray {
      * @param from the first element to be included (inclusive)
      * @param to the last element to be included (exclusive)
      * @throws IllegalArgumentException if
-     * {@code (il.get(j) < 0 || il.get(j) > 255)} for any index {@code j}
-     * satisfying  {@code (j >= from && j < to)}
-     * @throws IndexOutOfBoundsException if {@code from < 0 || to > il.length}
-     * @throws NegativeArraySizeException if {@code to > from}
-     * @throws NullPointerException if {@code il == null}
+     * {@code ((il.get(j) < 0) || (il.get(j) > 255))} for any index {@code j}
+     * satisfying  {@code ((j >= from) && (j < to))}
+     * @throws IndexOutOfBoundsException if
+     * {@code ((from < 0) || (to > il.size()))}
+     * @throws NegativeArraySizeException if {@code (to > from)}
+     * @throws NullPointerException if {@code (il == null)}
      */
     public UnsignedByteArray(IntList il, int from, int to) {
         this.ba = new byte[to - from];

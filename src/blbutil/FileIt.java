@@ -18,7 +18,6 @@
 package blbutil;
 
 import java.io.Closeable;
-import java.io.File;
 
 /**
  * <p>An iterator for data elements in a file.  If an {@code IOException}
@@ -39,14 +38,10 @@ import java.io.File;
 public interface FileIt<E> extends java.util.Iterator<E>, Closeable {
 
     /**
-     * Returns the file from which the data are read, or
-     * {@code null} if the data are read from standard input or if the
-     * data source is unknown.
-     * @return the file from which the data are read, or
-     * {@code null} if the data are read from standard input or if the
-     * data source is unknown
+     * Returns a string representation of the data source.
+     * @return a string representation of the data source
      */
-    File file();
+    public String source();
 
     /**
      * Closes the input stream and releases any system resources that are

@@ -61,7 +61,7 @@ public class AdmixHmmProbs {
 
         this.q = ParamUtils.q(params);
         this.studyMu = params.studyMu();
-        this.sampleMu = params.fixedParams().globalAncestries(studyMu);
+        this.sampleMu = params.sampleData().globalAncestries(studyMu);
     }
 
     private static double[][] pNoRecTRecRho(double[] pRecT, double[][] pRecRho) {
@@ -99,7 +99,7 @@ public class AdmixHmmProbs {
     }
 
     private static double[][] pRecRho(ParamsInterface params, FloatArray genDist) {
-        int nAnc = params.fixedParams().nAnc();
+        int nAnc = params.sampleData().nAnc();
         double[][] pRecRho = new double[nAnc][];
         for (int i=0; i<nAnc; ++i) {
             pRecRho[i] = AdmixUtils.pRec(params.rho(i), genDist);
@@ -128,7 +128,7 @@ public class AdmixHmmProbs {
      * @return the number of target samples
      */
     public int nTargSamples() {
-        return params.fixedParams().targSamples().size();
+        return params.sampleData().targSamples().size();
     }
 
     /**
@@ -136,7 +136,7 @@ public class AdmixHmmProbs {
      * @return the number of ancestries
      */
     public int nAnc() {
-        return params.fixedParams().nAnc();
+        return params.sampleData().nAnc();
     }
 
     /**
@@ -188,7 +188,7 @@ public class AdmixHmmProbs {
      */
     public void initFwd(int targHap, double[][] fwd, short[] refHapToPanel,
             int nRefHaps) {
-        int nAnc = params.fixedParams().nAnc();
+        int nAnc = params.sampleData().nAnc();
         int sample = targHap >> 1;
         for (int i=0; i<nAnc; ++i) {
             for (int h=0; h<nRefHaps; ++h) {
@@ -217,7 +217,7 @@ public class AdmixHmmProbs {
      * @throws NullPointerException if {@code (refHapToPanel == null)}
      */
     public void initFwd(double[][] fwd, short[] refHapToPanel, int nRefHaps) {
-        int nAnc = params.fixedParams().nAnc();
+        int nAnc = params.sampleData().nAnc();
         for (int i=0; i<nAnc; ++i) {
             for (int h=0; h<nRefHaps; ++h) {
                 fwd[i][h] = studyMu[i]*q[i][refHapToPanel[h]];
@@ -236,13 +236,13 @@ public class AdmixHmmProbs {
      * @param shift the shift parameter for each reference panel in the
      * HMM forward update
      * @throws IndexOutOfBoundsException if
-     * {@code (targHap < 0) || (targHap >=  2*this.params().fixedParams().targSamples().size())}
+     * {@code (targHap < 0) || (targHap >=  2*this.params().sampleData().targSamples().size())}
      * @throws IndexOutOfBoundsException if
      * {@code (marker < 0) || (marker >= this.nMarkers())}
      * @throws IndexOutOfBoundsException if
-     * {@code (ancestry < 0) || (ancestry >= this.params().fixedParams().nAnc())}
+     * {@code (ancestry < 0) || (ancestry >= this.params().sampleData().nAnc())}
      * @throws IndexOutOfBoundsException if
-     * {@code (refPanel < 0) || (refPanel >= this.params().fixedParams().nRefPanels())}
+     * {@code (refPanel < 0) || (refPanel >= this.params().sampleData().nRefPanels())}
      * @throws IndexOutOfBoundsException if {@code refPanel >= shift.length}
      * @throws NullPointerException if {@code shift == null}
      */
@@ -266,9 +266,9 @@ public class AdmixHmmProbs {
      * @throws IndexOutOfBoundsException if
      * {@code (marker < 0) || (marker >= this.nMarkers())}
      * @throws IndexOutOfBoundsException if
-     * {@code (ancestry < 0) || (ancestry >= this.params().fixedParams().nAnc())}
+     * {@code (ancestry < 0) || (ancestry >= this.params().sampleData().nAnc())}
      * @throws IndexOutOfBoundsException if
-     * {@code (refPanel < 0) || (refPanel >= this.params().fixedParams().nRefPanels())}
+     * {@code (refPanel < 0) || (refPanel >= this.params().sampleData().nRefPanels())}
      * @throws IndexOutOfBoundsException if {@code refPanel >= shift.length}
      * @throws NullPointerException if {@code shift == null}
      */
@@ -289,7 +289,7 @@ public class AdmixHmmProbs {
      * @throws IndexOutOfBoundsException if
      * {@code (marker < 0) || (marker >= this.nMarkers())}
      * @throws IndexOutOfBoundsException if
-     * {@code (ancestry < 0) || (ancestry >= this.params().fixedParams().nAnc())}
+     * {@code (ancestry < 0) || (ancestry >= this.params().sampleData().nAnc())}
      */
     public double bwdShift(int marker, int ancestry, double bwdAncSum, double bwdSum) {
         return pRecT[marker]*bwdSum + pNoRecTRecRho[ancestry][marker]*bwdAncSum;
@@ -318,7 +318,7 @@ public class AdmixHmmProbs {
      * @throws IndexOutOfBoundsException if
      * {@code marker < 0 || marker >= this.nMarkers()}
      * @throws IndexOutOfBoundsException if
-     * {@code (ancestry < 0) || (ancestry >= this.params().fixedParams().nAnc())}
+     * {@code (ancestry < 0) || (ancestry >= this.params().sampleData().nAnc())}
      */
     public double pNoRecTNoRecRho(int marker, int ancestry) {
         return pNoRecTNoRecRho[ancestry][marker];
@@ -337,10 +337,10 @@ public class AdmixHmmProbs {
      * @throws IndexOutOfBoundsException if
      * {@code marker < 0 || marker >= this.nMarkers()}
      * @throws IndexOutOfBoundsException if
-     * {@code (ancestry < 0) || (ancestry >= this.params().fixedParams().nAnc())}
+     * {@code (ancestry < 0) || (ancestry >= this.params().sampleData().nAnc())}
      * @throws IndexOutOfBoundsException if
      * {@code (refPanel < 0) ||
-     * (refPanel >= this.params().fixedParams().nRefPanels())}
+     * (refPanel >= this.params().sampleData().nRefPanels())}
      */
     public double rhoFactor(int marker, int ancestry, int refPanel) {
         return  pRecT[marker]*studyMu[ancestry]*q[ancestry][refPanel] + 1.0 - pRecT[marker];
@@ -360,10 +360,10 @@ public class AdmixHmmProbs {
      * @throws IndexOutOfBoundsException if
      * {@code marker < 0 || marker >= this.nMarkers()}
      * @throws IndexOutOfBoundsException if
-     * {@code (ancestry < 0) || (ancestry >= this.params().fixedParams().nAnc())}
+     * {@code (ancestry < 0) || (ancestry >= this.params().sampleData().nAnc())}
      * @throws IndexOutOfBoundsException if
-     * {@code (refPanel < 0) ||
-     * (refPanel >= this.params().fixedParams().nRefPanels())}
+     * {@code (refPanel < 0) || 
+     * (refPanel >= this.params().sampleData().nRefPanels())}
      */
     public double pHapChange(int marker, int ancestry, int refPanel) {
         return pRecT[marker]*studyMu[ancestry]*q[ancestry][refPanel]
@@ -383,10 +383,10 @@ public class AdmixHmmProbs {
      * @throws IndexOutOfBoundsException if
      * {@code marker < 0 || marker >= this.nMarkers()}
      * @throws IndexOutOfBoundsException if
-     * {@code (ancestry < 0) || (ancestry >= this.params().fixedParams().nAnc())}
+     * {@code (ancestry < 0) || (ancestry >= this.params().sampleData().nAnc())}
      * @throws IndexOutOfBoundsException if
      * {@code (refPanel < 0) ||
-     * (refPanel >= this.params().fixedParams().nRefPanels())}
+     * (refPanel >= this.params().sampleData().nRefPanels())}
      */
     public double pNoChange(int marker, int ancestry, int refPanel) {
         return pRecT[marker]*studyMu[ancestry]*q[ancestry][refPanel]

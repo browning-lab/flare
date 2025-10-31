@@ -19,6 +19,7 @@ package admix;
 
 import blbutil.Const;
 import java.util.concurrent.atomic.DoubleAdder;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * <p>Class {@code ParamEstimateData} estimates the analysis parameters for a
@@ -39,6 +40,8 @@ public class ParamEstimateData {
     private final DoubleAdder[] sumRhoGenDist;
     private final DoubleAdder sumTSwitchProbs;
     private final DoubleAdder sumTGenDist;
+    private final DoubleAdder sumMaxAncProbs;
+    private final LongAdder nMaxAncProbs;
 
     /**
      * Constructs a new {@code ParamsEstimateData} instance for the specified
@@ -48,13 +51,15 @@ public class ParamEstimateData {
      */
     public ParamEstimateData(ParamsInterface params) {
         this.prevParams = params;
-        this.nAnc = params.fixedParams().nAnc();
-        this.nPanels = params.fixedParams().nRefPanels();
+        this.nAnc = params.sampleData().nAnc();
+        this.nPanels = params.sampleData().nRefPanels();
         this.stateProbs = createDoubleAdderArray(nAnc, nPanels);
         this.sumRhoSwitchProbs = createDoubleAdderArray(nAnc);
         this.sumRhoGenDist = createDoubleAdderArray(nAnc);
         this.sumTSwitchProbs = new DoubleAdder();
         this.sumTGenDist = new DoubleAdder();
+        this.sumMaxAncProbs = new DoubleAdder();
+        this.nMaxAncProbs = new LongAdder();
     }
 
     private static DoubleAdder[][] createDoubleAdderArray(int nRows, int nCols) {
@@ -87,19 +92,6 @@ public class ParamEstimateData {
      */
     public ParamsInterface prevParams() {
         return prevParams;
-    }
-
-    /**
-     * Returns the estimated analysis parameters. Invocation in the
-     * absence of concurrent calls to {@code this.addMaxAncData()},
-     * {@code this.addStateData()}, {@code this.addRhoSwitchData()}, and
-     * {@code this.TSwitchaddData()}, returns an accurate result, but an
-     * accurate result is not guaranteed in the presence of concurrent updates.
-     * @param initParams the initial parameters
-     * @return the estimated analysis parameters
-     */
-    public ParamsInterface estimatedParams(ParamsInterface initParams) {
-        return new EstimatedParams(this, initParams);
     }
 
     /**
@@ -154,6 +146,28 @@ public class ParamEstimateData {
     public void addTSwitchData(double tSwitchProb, double tGenDist) {
         sumTSwitchProbs.add(tSwitchProb);
         sumTGenDist.add(tGenDist);
+    }
+
+    /**
+     * Add the specified data to {@code this}.
+     * @param sumMaxAncProbs a sum of maximal ancestry probabilities
+     * @param nMaxAncProbs the number of terms added to produce
+     * {@code sumMaxAncProbs}.
+     */
+    public void addMaxAncData(double sumMaxAncProbs, long nMaxAncProbs) {
+        this.sumMaxAncProbs.add(sumMaxAncProbs);
+        this.nMaxAncProbs.add(nMaxAncProbs);
+    }
+
+    /**
+     * Returns the mean maximal ancestry probability.  Invocation in the
+     * absence of concurrent calls to {@code this.addMaxAncData()},
+     * returns an accurate result, but an accurate result is not guaranteed
+     * in the presence of concurrent updates.
+     * @return the mean maximal ancestry probability
+     */
+    public double meanMaxAncProb() {
+        return sumMaxAncProbs.sum() / nMaxAncProbs.sum();
     }
 
     /**

@@ -32,7 +32,7 @@ import java.util.stream.IntStream;
  */
 public class AncSpecificParams implements ParamsInterface {
 
-    private final FixedParams fixedParams;
+    private final SampleData sampleData;
     private final double t;                    // gen since admixture
     private final double[] mu;                 // ancestry proportions
     private final double[][] theta;            // miscopy probability matrix
@@ -42,44 +42,43 @@ public class AncSpecificParams implements ParamsInterface {
     /**
      * Constructs a new {@code AncSpecificParams} instance from the specified
      * data.
-     * @param fixedParams the fixed parameters for a local ancestry inference
-     * analysis
+     * @param sampleData reference and target sample metadata
      * @param anc the ancestry index
      * @throws IllegalArgumentException if
-     * {@code anc < 0 || anc >= fixedParams.nAnc()}
-     * @throws NullPointerException if {@code fixedParams == null}
+     * {@code ((anc < 0) || (anc >= sampleData.nAnc())}
+     * @throws NullPointerException if {@code (sampleData == null)}
      */
-    public AncSpecificParams(FixedParams fixedParams, int anc) {
-        if (anc<0 || anc>=fixedParams.nAnc()) {
+    public AncSpecificParams(SampleData sampleData, int anc) {
+        if (anc<0 || anc>=sampleData.nAnc()) {
             throw new IllegalArgumentException(String.valueOf(anc));
         }
-        this.fixedParams = fixedParams;
+        this.sampleData = sampleData;
         this.t = Double.MIN_VALUE;
-        this.mu = IntStream.range(0, fixedParams.nAnc())
+        this.mu = IntStream.range(0, sampleData.nAnc())
                 .mapToDouble(j -> (j==anc ? 1.0 :  0.0))
                 .toArray();
-        double[] panelToProp = panelToProportion(fixedParams);
-        this.p = IntStream.range(0, fixedParams.nAnc())
+        double[] panelToProp = panelToProportion(sampleData);
+        this.p = IntStream.range(0, sampleData.nAnc())
                 .mapToObj(j -> panelToProp)
                 .toArray(double[][]::new);
-        this.theta = DefaultParams.defaultTheta(fixedParams);
-        double initRho = ((double) 200_000)/fixedParams.nRefHaps();
-        this.rho = IntStream.range(0, fixedParams.nAnc())
+        this.theta = ParamsInterface.defaultTheta(sampleData);
+        double initRho = ((double) 200_000)/sampleData.nRefHaps();
+        this.rho = IntStream.range(0, sampleData.nAnc())
                 .mapToDouble(j -> initRho)
                 .toArray();
     }
 
-    private static double[] panelToProportion(FixedParams fixedParams) {
-        IntArray nPanelHaps = fixedParams.nPanelHaps();
-        int nRefHaps = fixedParams.nRefHaps();
+    private static double[] panelToProportion(SampleData sampleData) {
+        IntArray nPanelHaps = sampleData.nPanelHaps();
+        int nRefHaps = sampleData.nRefHaps();
         return IntStream.range(0, nPanelHaps.size())
                 .mapToDouble(j -> (double) nPanelHaps.get(j) / nRefHaps)
                 .toArray();
     }
 
     @Override
-    public FixedParams fixedParams() {
-        return fixedParams;
+    public SampleData sampleData() {
+        return sampleData;
     }
 
     @Override

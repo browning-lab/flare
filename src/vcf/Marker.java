@@ -20,15 +20,10 @@ package vcf;
 import beagleutil.ChromIds;
 import blbutil.Const;
 import ints.IntList;
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-import java.util.Arrays;
 
 /**
  * <p>Class {@code Marker} represents a VCF record's CHROM, POS, ID, REF,
- * ALT, QUAL, FILTER, and INFO fields. The number of alleles in the VCF
- * record must be less than or equal to {@code Marker.MAX_N_ALLELES}.</p>
+ * ALT, QUAL, FILTER, and INFO fields.</p>
  *
  * <p>Instances of class {@code Marker} are immutable.</p>
  *
@@ -36,133 +31,121 @@ import java.util.Arrays;
  */
 public final class Marker implements Comparable<Marker> {
 
-    public  static final short MAX_N_ALLELES = 0xff;
-    private static final short STORED_N_ALLELES_MASK = 0xff;
-    private static final short INDEXED_N_ALLELES_MASK = 0b111;
+    /**
+     * The maximum number of distinct chromosome identifiers indexed by
+     * the {@code ChromIds.instance().getIndex()} method.
+     */
+    public static final int MAX_CHROMOSOMES = 0x10000;
 
-    private static final String[] SNV_PERMS = MarkerUtils.snvPerms();
-
-    private static final short ID_STORED = (short) (1<<15);
-    private static final short ALLELES_STORED = (short) (1<<14);
-    private static final short QUAL_STORED = (short) (1<<13);
-    private static final short FILTER_STORED = (short) (1<<12);
-    private static final short INFO_STORED = (short) (1<<11);
-    private static final short FLAG_BITS =
-            ID_STORED | ALLELES_STORED | QUAL_STORED | FILTER_STORED | INFO_STORED;
+    /**
+     * The maximum number of alleles in a VCF record's REF and ALT fields
+     */
+    public static final int MAX_ALLELES = 0x10000;
 
     private final short chromIndex;
     private final int pos;
-    private final short fieldInfo;
+    private final short nAlleles;
     private final String fields;
 
-    private Marker(short chromIndex, int pos, short fieldInfo, String fields) {
-        this.chromIndex = chromIndex;
+    /**
+     * Constructs a {@code Marker} instance for the specified data.
+     * The contract for constructed {@code Marker} is undefined
+     * if {@code (chromIndex < 0)}, if {@code (nAlleles < 0)},
+     * if {@code (fields == null)}, if the tab-delimited VCF ID, REf, ALT,
+     * QUAL, FILTER, and INFO in {@code fields} do not conform
+     * to the VCF specification, or if {@code nAlleles} does not equal
+     * the number of alleles in the REF and ALT fields of {@code fields}.
+     * @param chromIndex the chromosome index
+     * @param pos the base coordinate
+     * @param nAlleles the number of alleles
+     * @param fields the tab-delimited VCF ID, REF, ALT, QUAL, FILTER, and
+     * INFO fields
+     * @throws IndexOutOfBoundsException if
+     * {@code (chromIndex >= Marker.MAX_CHROMOSOMES)}
+     * @throws IndexOutOfBoundsException if the number of alleles in the REF
+     * and ALT fields of {@code fields} is greater than
+     * {@code Marker.MAX_ALLELES}
+     */
+    public Marker(int chromIndex, int pos, int nAlleles, String fields) {
+        if (chromIndex > MAX_CHROMOSOMES) {
+            throw new IllegalArgumentException(String.valueOf(chromIndex));
+        }
+        if (nAlleles > MAX_ALLELES) {
+            throw new IllegalArgumentException(String.valueOf(nAlleles));
+        }
+        this.chromIndex = (short) chromIndex;
         this.pos = pos;
-        this.fieldInfo = fieldInfo;
+        this.nAlleles = (short) nAlleles;
         this.fields = fields;
     }
 
     /**
-     * Constructs a new {@code BasicMarker} instance from the specified
-     * string VCF record.  If {@code storeInfo == false} and a VCF record
-     * INFO/END field is present, the INFO/END field will be stored.
-     * @param vcfRec a VCF record
-     * @param filter a filter for the VCF record's ID, QUAL, FILTER, and INFO
-     * subfields
-     * @throws IllegalArgumentException if the specified VCF record does not
-     * contain at least 8 tab characters
-     * @throws IllegalArgumentException if the VCF CHROM field contains
-     * whitespace
-     * @throws IllegalArgumentException if the specified VCF record has more
-     * than 255 alleles
-     * @throws IndexOutOfBoundsException if the index of the VCF CHROM field
-     * exceeds {@code Short.MAX_VALUE}
-     * @throws NullPointerException if
-     * {@code (vcfRecord == null) || (filter==null)}
-     * @throws NumberFormatException if the VCF record POS field is not a
-     * parsable integer
+     * Constructs a new {@code Marker} instance from the data from the first
+     * eight tab-delimited fields of the specified VCF record.  The contract
+     * for this method is undefined if the first 8 fields of the VCF record
+     * do not conform to the VCF 4.5 specification.
+     * @param vcfRec A string that begins with the first 8 tab-delimited fields
+     * of a VCF record
+     * @return a new {@code Marker} instance
+     *
+     * @throws IndexOutOfBoundsException if the VCF record CHROM field,
+     * {@code chrom} satisfies
+     * {@code ChromIds.instance().getIndex(chrom) >= Marker.MAX_CHROMOSOMES}
+     * @throws IndexOutOfBoundsException if the number of alleles in the REF
+     * and ALT fields of the VCF records is greater than
+     * {@code Marker.MAX_ALLELES}
+     * @throws NullPointerException if {@code (vcfRecord == null)}
      */
-    public Marker(String vcfRec, VcfFieldFilter filter) {
+    public static Marker fromVcfRecord(String vcfRec) {
+        return fromVcfRecord(vcfRec, false);
+    }
+
+    /**
+     * Constructs a new {@code Marker} instance from the data from the first
+     * eight tab-delimited fields of the specified VCF record.  The contract
+     * for this method is undefined if the first 8 fields of the VCF record
+     * do not conform to the VCF 4.5 specification.
+     * @param vcfRec A string that begins with the first 8 tab-delimited fields
+     * of a VCF record
+     * @param stripOptionalFields {@code true} if the VCF record's ID,
+     * QUAL, FILTER, and INFO subfields should be discarded
+     * @return a new {@code Marker} instance
+     *
+     * @throws IndexOutOfBoundsException if the VCF record CHROM field,
+     * {@code chrom} satisfies
+     * {@code ChromIds.instance().getIndex(chrom) >= Marker.MAX_CHROMOSOMES}
+     * @throws IndexOutOfBoundsException if the number of alleles in the REF
+     * and ALT fields of the VCF records is greater than
+     * {@code Marker.MAX_ALLELES}
+     * @throws NullPointerException if {@code (vcfRec == null)}
+     */
+    public static Marker fromVcfRecord(String vcfRec, boolean stripOptionalFields) {
         IntList tabs = MarkerUtils.first8TabIndices(vcfRec);
-        short fInfo = (short) 0;
         StringBuilder sb = new StringBuilder();
-        this.chromIndex = MarkerUtils.chromIndex(vcfRec, vcfRec.substring(0, tabs.get(0)));
-        this.pos = Integer.parseInt(vcfRec.substring(tabs.get(0)+1, tabs.get(1)));
-        if (filter.storeId(vcfRec, tabs.get(1)+1, tabs.get(2), sb)) {
-             fInfo |= ID_STORED;
-        }
-        fInfo = storeAlleles(vcfRec, tabs.get(2)+1, tabs.get(4), fInfo, ALLELES_STORED, sb);
-        if (filter.storeQual(vcfRec, tabs.get(4)+1, tabs.get(5),
-                ((fInfo & FLAG_BITS)!=0), sb)) {
-             fInfo |= QUAL_STORED;
-        }
-        if (filter.storeFilter(vcfRec, tabs.get(5)+1, tabs.get(6),
-                ((fInfo & FLAG_BITS)!=0), sb)) {
-             fInfo |= FILTER_STORED;
-        }
-        if (filter.storeInfo(vcfRec, tabs.get(6)+1, tabs.get(7),
-                ((fInfo & FLAG_BITS)!=0), sb)) {
-             fInfo |= INFO_STORED;
-        }
-        this.fields = (fInfo & FLAG_BITS)==0 ? null : sb.toString();
-        this.fieldInfo = fInfo;
-    }
-
-    private static short storeAlleles(String vcfRec, int start, int end,
-            short fieldInfo, short fieldInfoMask, StringBuilder sb) {
-        String refAltAlleles = new String(vcfRec.substring(start, end));
-        int snvIndex = snvIndex(refAltAlleles);
-        if (snvIndex>=0) {
-            int nAlleles = refAltAlleles.endsWith("\t.") ? 1 : ((end - start + 1) >> 1);
-            fieldInfo |= (snvIndex<<3);
-            fieldInfo |= nAlleles;
+        short chromIndex = MarkerUtils.chromIndex(vcfRec, vcfRec.substring(0, tabs.get(0)));
+        int pos = Integer.parseInt(vcfRec.substring(tabs.get(0)+1, tabs.get(1)));
+        if (stripOptionalFields) {
+            sb.append('.');                                 // ID
+            sb.append(vcfRec, tabs.get(2), tabs.get(4));    // REF, ALT
+            sb.append("\t.\t.\t.");                         // QUAL, FILTER, INFO
         }
         else {
-            int tabIndex = refAltAlleles.indexOf(Const.tab);
-            if ((tabIndex+1)==refAltAlleles.length()) {
-                String s = "ERROR: missing ALT field: "
-                        + MarkerUtils.truncate(vcfRec, 80);
-                throw new IllegalArgumentException(s);
-            }
-            int nAlleles = nAlleles(refAltAlleles, tabIndex);
-            if (nAlleles > STORED_N_ALLELES_MASK) {
-                throw new IndexOutOfBoundsException(String.valueOf(nAlleles));
-            }
-            if ((fieldInfo & FLAG_BITS)!=0) {
-                sb.append(Const.tab);
-            }
-            sb.append(refAltAlleles);
-            fieldInfo |= nAlleles;
-            fieldInfo |= fieldInfoMask;
+            sb.append(vcfRec, tabs.get(1) + 1, tabs.get(7));
         }
-        return fieldInfo;
+        short nAlleles = (short) nAlleles(vcfRec, tabs.get(3)+1, tabs.get(4));
+        return new Marker(chromIndex, pos, nAlleles, sb.toString());
     }
 
-    private static int snvIndex(String refAndAlt) {
-        int index = Arrays.binarySearch(SNV_PERMS, refAndAlt);
-        if (index<0) {
-            index = -index-1;
-        }
-        if (index==SNV_PERMS.length) {
-            return -1;
-        }
-        else {
-            return SNV_PERMS[index].startsWith(refAndAlt) ? index : -1;
-        }
-    }
-
-    private static int nAlleles(String refAltAlleles, int tabIndex) {
-        int startAllele = tabIndex + 1;
-        if (startAllele==(refAltAlleles.length()-1)
-                && refAltAlleles.charAt(startAllele)==Const.MISSING_DATA_CHAR) {
+    private static int nAlleles(String rec, int altStart, int altEnd) {
+        if ((altEnd-altStart)==1 && rec.charAt(altStart)==Const.MISSING_DATA_CHAR) {
             return 1;
         }
         else {
             int nAlleles = 2;
-            startAllele = refAltAlleles.indexOf(Const.comma, startAllele) + 1;
-            while (startAllele>0) {
-                ++nAlleles;
-                startAllele = refAltAlleles.indexOf(Const.comma, startAllele) + 1;
+            for (int j=altStart; j<altEnd; ++j) {
+                if (rec.charAt(j)==',') {
+                    ++nAlleles;
+                }
             }
             return nAlleles;
         }
@@ -172,7 +155,7 @@ public final class Marker implements Comparable<Marker> {
      * Returns the VCF CHROM field.
      * @return the VCF CHROM field
      */
-    public String chrom() {
+    public String chromID() {
         return ChromIds.instance().id(chromIndex);
     }
 
@@ -193,103 +176,41 @@ public final class Marker implements Comparable<Marker> {
     }
 
     /**
-     * Returns {@code true} if the VCF ID field has non-missing
-     * data, and returns {@code false} otherwise.
-     *
-     * @return {@code true} if the VCF ID field has non-missing
-     * data, and returns {@code false} otherwise
-     */
-    public boolean hasIdData() {
-        return (fieldInfo & ID_STORED)==ID_STORED;
-    }
-
-    /**
-     * Returns {@code true} if the VCF QUAL field has non-missing
-     * data, and returns {@code false} otherwise.
-     *
-     * @return {@code true} if the VCF QUAL field has non-missing
-     * data, and returns {@code false} otherwise
-     */
-    public boolean hasQualData() {
-        return (fieldInfo & QUAL_STORED)==QUAL_STORED;
-    }
-
-    /**
-     * Returns {@code true} if the VCF FILTER field has non-missing
-     * data, and returns {@code false} otherwise.
-     *
-     * @return {@code true} if the VCF FILTER field has non-missing
-     * data, and returns {@code false} otherwise
-     */
-    public boolean hasFilterData() {
-        return (fieldInfo & FILTER_STORED)==FILTER_STORED;
-    }
-
-    /**
-     * Returns {@code true} if the VCF INFO field has non-missing
-     * data, and returns {@code false} otherwise.
-     *
-     * @return {@code true} if the VCF INFO field has non-missing
-     * data, and returns {@code false} otherwise
-     */
-    public boolean hasInfoData() {
-        return (fieldInfo & INFO_STORED)==INFO_STORED;
-    }
-
-    /**
      * Returns the VCF ID field.
      * @return the VCF ID field
      */
     public String id() {
-        if ((fieldInfo & ID_STORED)==ID_STORED) {
-            int endIndex = fields.indexOf(Const.tab);
-            return endIndex<0 ? fields : fields.substring(0, endIndex);
-        }
-        else {
-            return Const.MISSING_DATA_STRING;
-        }
+        return fields.substring(0, fields.indexOf('\t'));
     }
 
     /**
      * Returns the tab-separated VCF REF and ALT fields
      * @return the tab-separated VCF REF and ALT fields
      */
-    public String refAlt() {
-        if ((fieldInfo & ALLELES_STORED)==ALLELES_STORED) {
-            int start = 0;
-            if ((fieldInfo & ID_STORED)==ID_STORED) {
-                start = fields.indexOf(Const.tab) + 1;      // start of REF
-            }
-            int end = fields.indexOf(Const.tab, start);     // end of REF
-            end = fields.indexOf(Const.tab, end+1);         // end of ALT
-            return end<0 ? fields.substring(start) : fields.substring(start, end);
-        }
-        else {
-            int snvIndex = (fieldInfo>>>3) & 0xff;
-            int nAlleles = fieldInfo & INDEXED_N_ALLELES_MASK;
-            if (nAlleles==1) {
-                return SNV_PERMS[snvIndex];
-            }
-            else {
-                int nChars =(nAlleles<<1) - 1;
-                return SNV_PERMS[snvIndex].substring(0, nChars);
-            }
-        }
+    public String alleles() {
+        int refStart = fields.indexOf('\t') + 1;
+        int altStart = fields.indexOf('\t', refStart) + 1;
+        int altEnd = fields.indexOf('\t', altStart);
+        return fields.substring(refStart, altEnd);
     }
 
     /**
-     * Returns the number of alleles for the marker, including the REF
-     * allele.
-     * @return the number of alleles for the marker, including the REF
-     * allele
+     * Returns the number of nucleotides in the reference allele.
+     * @return the number of nucleotides in the reference allele
+     */
+    public int nRefBases() {
+        int refStart = fields.indexOf('\t') + 1;
+        int refEnd = fields.indexOf('\t', refStart);
+        return (refEnd - refStart);
+    }
+
+    /**
+     * Returns the number of alleles in the VCF REF and ALT fields.
+
+     * @return the number of alleles in the VCF REF and ALT fields
      */
     public int nAlleles() {
-        if ((fieldInfo & ALLELES_STORED)==ALLELES_STORED) {
-            return (fieldInfo & STORED_N_ALLELES_MASK);
-        }
-        else {
-            return fieldInfo & INDEXED_N_ALLELES_MASK;
-        }
+        return nAlleles & 0xffff;
     }
 
     /**
@@ -302,34 +223,15 @@ public final class Marker implements Comparable<Marker> {
         return Integer.SIZE - Integer.numberOfLeadingZeros(nAlleles()-1);
     }
 
-    private int qualStartIndex() {
-        int start = 0;
-        if ((fieldInfo & ID_STORED)==ID_STORED) {
-            start = fields.indexOf(Const.tab) + 1;         // skip ID field
-        }
-        if ((fieldInfo & ALLELES_STORED)==ALLELES_STORED) {
-            start = fields.indexOf(Const.tab, start) + 1;  // skip REF field
-            start = fields.indexOf(Const.tab, start) + 1;  // skip ALT field
-        }
-        return start;
-    }
-
-    private String extractField(int start) {
-        int end = fields.indexOf(Const.tab, start);
-        return end<0 ? fields.substring(start) : fields.substring(start, end);
-    }
-
     /**
      * Returns the VCF QUAL field.
      * @return the VCF QUAL field
      */
     public String qual() {
-        if ((fieldInfo & QUAL_STORED)==QUAL_STORED) {
-            return extractField(qualStartIndex());
-        }
-        else {
-            return Const.MISSING_DATA_STRING;
-        }
+        int filterEnd = fields.lastIndexOf('\t');
+        int qualEnd = fields.lastIndexOf('\t', (filterEnd-1));
+        int qualStart = fields.lastIndexOf('\t', (qualEnd-1)) + 1;
+        return fields.substring(qualStart, qualEnd);
     }
 
     /**
@@ -337,16 +239,9 @@ public final class Marker implements Comparable<Marker> {
      * @return the VCF FILTER field.
      */
     public String filter() {
-        if ((fieldInfo & FILTER_STORED)==FILTER_STORED) {
-            int start = qualStartIndex();
-            if ((fieldInfo & QUAL_STORED)==QUAL_STORED) {
-                start = fields.indexOf(Const.tab, start) + 1; // skip QUAL field
-            }
-            return extractField(start);
-        }
-        else {
-            return Const.MISSING_DATA_STRING;
-        }
+        int filterEnd = fields.lastIndexOf('\t');
+        int filterStart = fields.lastIndexOf('\t', (filterEnd-1)) + 1;
+        return fields.substring(filterStart, filterEnd);
     }
 
     /**
@@ -354,31 +249,27 @@ public final class Marker implements Comparable<Marker> {
      * @return the VCF INFO field.
      */
     public String info() {
-        if ((fieldInfo & INFO_STORED)==INFO_STORED) {
-            int start = qualStartIndex();
-            if ((fieldInfo & QUAL_STORED)==QUAL_STORED) {
-                start = fields.indexOf(Const.tab, start) + 1;  // skip QUAL field
-            }
-            if ((fieldInfo & FILTER_STORED)==FILTER_STORED) {
-                start = fields.indexOf(Const.tab, start) + 1;  // skip FILTER field
-            }
-            return extractField(start);
-        }
-        else {
-            return Const.MISSING_DATA_STRING;
-        }
+        return fields.substring(fields.lastIndexOf('\t') + 1);
+    }
+
+    /**
+     * Returns the tab-delimited ID, REF, ALT, QUAL, FILTER, and INFO fields
+     * @return the tab-delimited ID, REF, ALT, QUAL, FILTER, and INFO fields
+     */
+    public String fields() {
+        return fields;
     }
 
     /**
      * <p>Returns the hash code value for this object.
      * The hash code is defined by the following calculation:
      * </p>
-     * <pre>
+     *   <pre>
      *   int hash = 5;
-     *   hash = 29 * hash + chromIndex;
-     *   hash = 29 * hash + this.pos;
-     *   hash = 29 * hash + refAlt().hashCode();
-     * </pre>
+     *   hash = 29 * hash + this.chromIndex();
+     *   hash = 29 * hash + this.pos();
+     *   hash = 29 * hash + this.alleles().hashCode();
+    *   </pre>
      *
      * @return the hash code value for this marker
      */
@@ -387,14 +278,60 @@ public final class Marker implements Comparable<Marker> {
         int hash = 5;
         hash = 29 * hash + chromIndex;
         hash = 29 * hash + pos;
-        hash = 29 * hash + refAlt().hashCode();
+        hash = 29 * hash + alleles().hashCode();
         return hash;
     }
+
+//    /**
+//     * Returns the string that is obtained by reordering the marker's
+//     * alleles in {@code this.fields()} so that the original {@code j}-th
+//     * allele is the {@code newIndices[j]}-th allele in the returned string.
+//     *
+//     * @param indexMap an array whose {@code j}-th element is the
+//     * index of the {@code}-th allele after re-ordering alleles
+//     * @param flipStrand {@code true} if each allele in {@code marker.fields()}
+//     * should be replaced with the allele on the complementary DNA strand
+//     * @return the {@code this.fields()} string with re-ordered alleles
+//     * @throws IllegalArgumentException if {@code indexMap} is not a
+//     * permutation of this marker's allele indices
+//     * @throws IllegalArgumentException if any allele is a symbolic
+//     * allele
+//     * @throws IllegalArgumentException if {@code (flipStrand == true)} and
+//     * any character of a marker allele is not {@code 'A'}, {@code 'C'},
+//     * {@code 'G'}, {@code 'T'}, {@code 'N'}, or {@code '*'}
+//     * @throws NullPointerException if {@code (indexMap == null)}
+//     */
+//    public Marker reorderAlleles(int[] indexMap, boolean flipStrand) {
+//        String newFields = AlleleMapper.reorderAltAlleles(this, indexMap, flipStrand);
+//        return new Marker(chromIndex, pos, nAlleles, newFields);
+//    }
 
     /**
      * Returns {@code true} if the specified object is a
      * {@code Marker} with the same chromosome, position, and alleles,
      * and returns {@code false} otherwise.
+     * <p>
+     * The return value is defined by the following calculation:
+     * </p>
+     *   <pre>
+        if (this==obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final Marker other = (Marker) obj;
+        if (this.chromIndex() != other.chromIndex()) {
+            return false;
+        }
+        if (this.pos() != other.pos()) {
+            return false;
+        }
+        return this.alleles().equals(other.alleles());
+     *  </pre>
      *
      * @param obj object to be compared with {@code this} for equality
      *
@@ -419,17 +356,17 @@ public final class Marker implements Comparable<Marker> {
         if (this.pos != other.pos) {
             return false;
         }
-        return this.refAlt().equals(other.refAlt());
+        return this.alleles().equals(other.alleles());
     }
 
     /**
      * Compares this marker with the specified marker
      * for order, and returns a negative integer, 0, or a positive integer
      * depending on whether this marker is less than, equal to,
-     * or greater than the specified marker.  Markers are compared
-     * in using the values returned by the {@code chromIndex()}, {@code pos()}
-     * and {@code refAlt()} returned methods. The returned value is
-     * defined by the following calculation:
+     * or greater than the specified marker. Markers are compared
+     * using the values returned by the {@code chromIndex()}, {@code pos()},
+     * and {@code alleles()} methods. The returned value is defined
+     * by the following calculation:
      *   <pre>
      *   if (this.chromIndex() != other.chromIndex()) {
      *       return (this.chromIndex &lt; other.chromIndex()) ? -1 : 1;
@@ -437,8 +374,8 @@ public final class Marker implements Comparable<Marker> {
      *   if (this.pos() != other.pos()) {
      *       return (this.pos &lt; other.pos()) ? -1 : 1;
      *   }
-     *   return this.refAlt().compareTo(other.refAlt());
-     *  </pre>
+     *   return this.alleles().compareTo(other.alleles());
+     *   </pre>
      *
      * @param other the {@code Marker} to be compared
      * @return a negative integer, 0, or a positive integer
@@ -447,68 +384,27 @@ public final class Marker implements Comparable<Marker> {
      */
     @Override
     public int compareTo(Marker other) {
-        if (this.chromIndex != other.chromIndex()) {
+        if (this.chromIndex != other.chromIndex) {
             return (this.chromIndex < other.chromIndex) ? -1 : 1;
         }
         if (this.pos != other.pos) {
             return (this.pos < other.pos) ? -1 : 1;
         }
-        return this.refAlt().compareTo(other.refAlt());
-    }
-
-    /**
-     * Writes a representation of the VCF record ID, REF, ALT, QUAL, FILTER,
-     * and INFO fields to the specified output. The exact details of the
-     * representation are unspecified and subject to change. The written data
-     * can be read with the {@code Marker.readNonPosFields()} method.
-     * @param out the output destination
-     * @throws IOException if an I/O error occurs
-     * @throws NullPointerException if {@code out == null}
-     */
-    public void writeNonPosFields(DataOutput out) throws IOException {
-        out.writeShort(fieldInfo);
-        if ((fieldInfo & FLAG_BITS)!=0) {
-            out.writeUTF(fields);
-        }
-    }
-
-    /**
-     * Reads the VCF record ID, REF, ALT, QUAL, FILTER, and INFO fields and
-     * returns a marker with these fields and the specified CHROM and POS
-     * fields.  The contract for this method is unspecified if
-     * {@code chromIndex} is not a valid chromosome index.
-     * @param chromIndex the chromosome index
-     * @param pos the chromosome position
-     * @param in the input source
-     * @return a {@code Marker}
-     * @throws IOException if an I/O error occurs
-     * @throws NullPointerException if {@code in == null}
-     */
-    public static Marker readNonPosFields(short chromIndex, int pos,
-            DataInput in) throws IOException {
-        short fieldInfo = (short) in.readShort();
-        String fields = (fieldInfo & Marker.FLAG_BITS) == 0 ? null : in.readUTF();
-        return new Marker(chromIndex, pos, fieldInfo, fields);
+        return this.alleles().compareTo(other.alleles());
     }
 
      /**
-      * Returns a string equal to the first five tab-delimited fields
+      * Returns a string equal to the first eight tab-delimited fields
       * of a VCF record corresponding to this marker (the CHROM, POS, ID,
-      * REF, and ALT fields).
+      * REF, ALT, QUAL, FILTER, and INFO fields).
       *
-      * @return a string equal to the first five tab-delimited fields
+      * @return a string equal to the first eight tab-delimited fields
       * of a VCF record corresponding to this marker
       */
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder(50);
-        sb.append(chrom());
-        sb.append(Const.tab);
-        sb.append(pos);
-        sb.append(Const.tab);
-        sb.append(id());
-        sb.append(Const.tab);
-        sb.append(refAlt());
+        MarkerUtils.appendFirst8Fields(this, sb);
         return sb.toString();
     }
 }

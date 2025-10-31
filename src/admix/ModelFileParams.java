@@ -38,7 +38,7 @@ import vcf.Samples;
  */
 public class ModelFileParams implements ParamsInterface {
 
-    private final FixedParams fixedParams;
+    private final SampleData sampleData;
     private final double t;                    // gen since admixture
     private final double[] mu;                 // ancestry proportions
     private final double[][] theta;            // miscopy probability matrix
@@ -48,27 +48,26 @@ public class ModelFileParams implements ParamsInterface {
     /**
      * Constructs a new {@code ModelFileParams} instance for the specified
      * data. The Java virtual machine will exit with an error if an error in
-     * the the format of the {@code fixedParams.par().model()} file is detected.
-     * @param fixedParams the fixed parameters for a local ancestry inference
-     * analysis
+     * the format of the {@code sampleData.par().model()} file is detected.
+     * @param sampleData reference and target sample metadata
      * @throws NullPointerException if
-     * {@code (fixedParams == null) || (fixedParams.par().modelFile() == null)}
+     * {@code (sampleData == null) || (sampleData.par().modelFile() == null)}
      */
-    public ModelFileParams(FixedParams fixedParams) {
-        AdmixPar par = fixedParams.par();
-        Samples refSamples = fixedParams.refSamples();
+    public ModelFileParams(SampleData sampleData) {
+        AdmixPar par = sampleData.par();
+        Samples refSamples = sampleData.refSamples();
         String[] sampleToRefPanel = AdmixUtils.sampleMap(refSamples, par.ref_panel());
         ArrayList<String> lines = readParamsData(par.model());
 
         String[] ancIds = StringUtil.getFields(lines.get(0));
         String[] refPanelIds = StringUtil.getFields(lines.get(1));
-        AncPanelFile.confirmMoreThanOneAncestry(ancIds);
+        SampleData.confirmMoreThanOneAncestry(ancIds);
         AdmixRefPanels.checkRefPanelIds(refSamples, sampleToRefPanel, refPanelIds);
 
         int nAnc = ancIds.length;
         double[][] dblValues = extractDoubles(par.model(), lines, nAnc, refPanelIds);
 
-        this.fixedParams = fixedParams;
+        this.sampleData = sampleData;
         this.t = dblValues[0][0];
         this.mu = dblValues[1];
         this.p = Arrays.copyOfRange(dblValues, 2, nAnc+2);
@@ -287,8 +286,8 @@ public class ModelFileParams implements ParamsInterface {
     }
 
     @Override
-    public FixedParams fixedParams() {
-        return fixedParams;
+    public SampleData sampleData() {
+        return sampleData;
     }
 
     @Override

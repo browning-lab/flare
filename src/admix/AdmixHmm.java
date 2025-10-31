@@ -37,7 +37,6 @@ public class AdmixHmm {
     private final int nTargHaps;
     private final int nAnc;
     private final int nPanels;
-    private final float minAncProb;
 
     private final AdmixStates states;
     private final short[][] refPanel;
@@ -59,13 +58,15 @@ public class AdmixHmm {
 
     private final double[][] scaledStateProbs;
     private final double[][] sumStateProbs;
+    private double sumMaxAncProbs;
+    private long nMaxAncProbs;
 
     /**
      * Constructs a new {@code AdmixHmm} instance for the specified data.
      *
      * @param data the input data and analysis parameters
-     * @param ibsHaps the object for constructing composite reference
-     * haplotypes
+     * @param ibsHaps the IBS haplotype segments for constructing composite
+     * reference haplotypes
      * @throws IllegalArgumentException if
      * {@code data.chromData() != ibsHaps.chromData()}
      * @throws NullPointerException if
@@ -80,11 +81,10 @@ public class AdmixHmm {
         this.hmmProbs = data.hmmProbs();
         this.nMarkers = chromData.targRefGT().nMarkers();
         this.nTargHaps = chromData.nTargHaps();
-        this.nAnc = params.fixedParams().nAnc();
-        this.nPanels = params.fixedParams().nRefPanels();
-        this.minAncProb = params.fixedParams().par().em_anc_prob();
+        this.nAnc = chromData.sampleData().nAnc();
+        this.nPanels = chromData.sampleData().nRefPanels();
 
-        this.states = new AdmixStates(data, ibsHaps);
+        this.states = new AdmixStates(ibsHaps);
         this.refPanel = new short[nMarkers][states.maxStates()];
         this.nMismatches = new byte[nMarkers][states.maxStates()];
 
@@ -104,6 +104,8 @@ public class AdmixHmm {
 
         this.scaledStateProbs = new double[nAnc][nPanels];
         this.sumStateProbs = new double[nAnc][nPanels];
+        this.sumMaxAncProbs = 0.0;
+        this.nMaxAncProbs = 0;
     }
 
     /**
@@ -121,7 +123,7 @@ public class AdmixHmm {
      * @return the list of haplotypes with stored IBS segments
      */
     public WrappedIntArray hapList() {
-        return states.ibsHaps().selectedHaps().selectedHaps();
+        return states.ibsHaps().observedHaps().hapList();
     }
 
     /**
@@ -132,10 +134,10 @@ public class AdmixHmm {
      * @throws IndexOutOfBoundsException if
      * {@code index < 0 || index >= this.hapList().size()}
      */
-    public void runFwdBwdMuT(int hapListIndex) {
+    public void runFwdBwdEstimateParams(int hapListIndex) {
         int nHapStates = states.ibsStates(hapListIndex, refPanel, nMismatches);
         setBwdCheckPoints(nHapStates);
-        fwdAlgMuT(nHapStates);
+        fwdEstimateParams(nHapStates);
     }
 
     /**
@@ -147,7 +149,7 @@ public class AdmixHmm {
      * @throws IndexOutOfBoundsException if
      * {@code index < 0 || index >= this.hapList().size()}
      */
-    public void runFwdBwdRhoP(int hapListIndex) {
+    public void runFwdBwdRho(int hapListIndex) {
         int nHapStates = states.ibsStates(hapListIndex, refPanel, nMismatches);
         setBwdCheckPoints(nHapStates);
         fwdAlgRhoP(nHapStates);
@@ -199,7 +201,7 @@ public class AdmixHmm {
         }
     }
 
-    private void fwdAlgMuT(int nHapStates) {
+    private void fwdEstimateParams(int nHapStates) {
         double[] ancSums = params.studyMu();
         hmmProbs.initFwd(fwd, refPanel[0], nHapStates);
         int window = -1;
@@ -216,11 +218,14 @@ public class AdmixHmm {
                 double[][] bwdM1 = offset==0 ? bwdCheckPts[window-1] : bwdWindow[offset-1];
                 hmmUpdaterT.storeTData(m, bwdM1, bwdSums[m-1], bwdWindow[offset],
                         fwd, refPanel[m], nMismatches[m], nHapStates);
+                hmmUpdaterRho.storeRhoData(m, bwdM1, bwdSums[m-1], bwdWindow[offset],
+                        fwd, refPanel[m], nMismatches[m], nHapStates);
             }
             fwdSums[m] = hmmUpdater.fwdUpdate(m, fwd, ancSums, refPanel[m],
                     nMismatches[m], nHapStates);
             setAncAndStateProbs(m, fwd, bwdWindow[offset], nHapStates);
         }
+        updateMaxAncProbs();
     }
 
     private void fwdAlgAnc(int targHap, int nHapStates) {
@@ -353,12 +358,24 @@ public class AdmixHmm {
         double unscaleFactor = 1.0/cumSum;
         for (int i=0; i<nAnc; ++i) {
             ancSums[i] *= unscaleFactor;
-	    if (ancSums[i]>=minAncProb) {
-		for (int j=0; j<nPanels; ++j) {
-		    sumStateProbs[i][j] += unscaleFactor*scaledStateProbs[i][j];
-		}
-	    }
+            for (int j=0; j<nPanels; ++j) {
+                sumStateProbs[i][j] += unscaleFactor*scaledStateProbs[i][j];
+            }
             Arrays.fill(scaledStateProbs[i], 0.0);
+        }
+    }
+
+    private void updateMaxAncProbs() {
+        for (int offset=0; offset<ancProbs.length; offset+=nAnc) {
+            int nextOffset = offset + nAnc;
+            int maxIndex = offset;
+            for (int k=(offset+1); k<nextOffset; ++k) {
+                if (ancProbs[k]>ancProbs[maxIndex]) {
+                    maxIndex = k;
+                }
+            }
+            sumMaxAncProbs += ancProbs[maxIndex];
+            ++nMaxAncProbs;
         }
     }
 
@@ -368,12 +385,20 @@ public class AdmixHmm {
      * are the ancestry proportions and the number of generations
      * since admixture respectively.
      * @param paramData the object which estimates analysis parameters
-     * @throws NullPointerException if {@code paramData == null}
+     * @throws NullPointerException if {@code (paramData == null)}
      */
-    public void updateMuT(ParamEstimateData paramData) {
+    public void updateParams(ParamEstimateData paramData) {
+        paramData.addMaxAncData(sumMaxAncProbs, nMaxAncProbs);
         paramData.addTSwitchData(hmmUpdaterT.sumTSwitchProbs(),
                 hmmUpdaterT.sumTGenDist());
+        for (int i=0; i<nAnc; ++i) {
+            paramData.addRhoSwitchData(i, hmmUpdaterRho.sumRhoSwitchProbs(i),
+                    hmmUpdaterRho.sumRhoGenDist(i));
+        }
+        sumMaxAncProbs = 0.0;
+        nMaxAncProbs = 0;
         hmmUpdaterT.clear();
+        hmmUpdaterRho.clear();
         updateStateProbs(paramData);
     }
 
@@ -386,7 +411,7 @@ public class AdmixHmm {
      * @param paramData the object which estimates analysis parameters
      * @throws NullPointerException if {@code paramData == null}
      */
-    public void updateRhoP(ParamEstimateData paramData) {
+    public void updateRho(ParamEstimateData paramData) {
         for (int i=0; i<nAnc; ++i) {
             paramData.addRhoSwitchData(i, hmmUpdaterRho.sumRhoSwitchProbs(i),
                     hmmUpdaterRho.sumRhoGenDist(i));

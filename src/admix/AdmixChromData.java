@@ -25,6 +25,7 @@ import vcf.MarkerMap;
 import vcf.Markers;
 import vcf.RefGT;
 import vcf.Samples;
+import vcf.VcfHeader;
 
 /**
  * <p>Class {@code AdmixChromData} represents the immutable input data for
@@ -37,14 +38,16 @@ import vcf.Samples;
 public class AdmixChromData {
 
     private final AdmixPar par;
+    private final SampleData sampleData;
     private final RefGT targRefGT;
     private final MarkerMap map;
     private final int nRefHaps;
     private final int nTargHaps;
 
-    private AdmixChromData(AdmixPar par, RefGT targRefGT, int nRefHaps,
+    private AdmixChromData(SampleData sampleData, RefGT targRefGT, int nRefHaps,
             MarkerMap map) {
-        this.par = par;
+        this.par = sampleData.par();
+        this.sampleData = sampleData;
         this.targRefGT = targRefGT;
         this.map = map;
         this.nRefHaps = nRefHaps;
@@ -57,6 +60,14 @@ public class AdmixChromData {
      */
     public AdmixPar par() {
         return par;
+    }
+
+    /**
+     * Returns reference and target sample metadata.
+     * @return reference and target sample metadata
+     */
+    public SampleData sampleData() {
+        return sampleData;
     }
 
     /**
@@ -107,8 +118,8 @@ public class AdmixChromData {
      */
     public static class It implements Closeable {
 
-        private final AdmixPar par;
         private final AdmixReader reader;
+        private final SampleData sampleData;
         private final GeneticMap genMap;
 
         /**
@@ -119,8 +130,9 @@ public class AdmixChromData {
          */
         public It(AdmixPar par) {
             ChromInterval chromInt = null;
-            this.par = par;
             this.reader = AdmixReader.instance(par);
+            this.sampleData = SampleData.create(par, reader.refSamples(),
+                    reader.targSamples());
             this.genMap = GeneticMap.geneticMap(par.map(), chromInt);
         }
 
@@ -140,7 +152,7 @@ public class AdmixChromData {
                 Markers markers = targRefGT.markers();
                 double meanGenDiff = MarkerMap.meanSingleBaseGenDist(genMap, markers);
                 MarkerMap map = MarkerMap.create(genMap, meanGenDiff, targRefGT.markers());
-                AdmixChromData ad = new AdmixChromData(par, targRefGT, nRefHaps, map);
+                AdmixChromData ad = new AdmixChromData(sampleData, targRefGT, nRefHaps, map);
                 return Optional.of(ad);
             }
             else {
@@ -149,11 +161,27 @@ public class AdmixChromData {
         }
 
         /**
+         * Returns the target VCF meta-information lines and header line.
+         * @return the target VCF meta-information lines and header line
+         */
+        public VcfHeader targVcfHeader() {
+            return reader.targVcfHeader();
+        }
+
+        /**
+         * Returns reference and target sample metadata.
+         * @return reference and target sample metadata
+         */
+        public SampleData sampleData() {
+            return sampleData;
+        }
+
+        /**
          * Returns the list of reference samples.
          * @return the list of reference samples
          */
         public Samples refSamples() {
-            return reader.refSamples();
+            return sampleData.refSamples();
         }
 
         /**
@@ -161,7 +189,7 @@ public class AdmixChromData {
          * @return the list of target samples
          */
         public Samples targSamples() {
-            return reader.targSamples();
+            return sampleData.targSamples();
         }
 
         /**

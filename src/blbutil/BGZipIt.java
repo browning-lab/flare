@@ -21,7 +21,6 @@ import ints.IntList;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -67,35 +66,26 @@ public final class BGZipIt implements FileIt<String> {
     private static final byte BGZIP_SLEN2 = 0;
 
     private final InputStream is;
-    private final File source;
+    private final String source;
     private final int nBufferedBlocks;
-    private byte[] leftOverBytes;
     private final ArrayDeque<String> lines;
-
-    /**
-     * Constructs a new {@code BGZipIt} instance from the specified data
-     * @param is an input stream that reads from a gzip-compressed
-     * VCF file
-     * @param nBufferedBlocks the number of buffered gzip blocks
-     * @throws IllegalArgumentException if {@code nBufferedBlocks < 1}
-     * @throws NullPointerException if {@code is == null}
-     */
-    public BGZipIt(InputStream is, int nBufferedBlocks) {
-        this(is, nBufferedBlocks, null);
-    }
+    private byte[] leftOverBytes;
 
     /**
      * Constructs a new {@code BGZipIt} instance from the specified data
      * @param is an input stream that reads gzip-compressed
      * VCF data
      * @param nBufferedBlocks the number of buffered gzip blocks
-     * @param source the gzip-compressed VCF file that is read
+     * @param source a string representation of the data source
      * @throws IllegalArgumentException if {@code nBufferedBlocks < 1}
-     * @throws NullPointerException if {@code is == null}
+     * @throws NullPointerException if {@code (is == null) || (source == null)}
      */
-    public BGZipIt(InputStream is, int nBufferedBlocks, File source) {
+    public BGZipIt(InputStream is, int nBufferedBlocks, String source) {
         if (nBufferedBlocks < 1) {
             throw new IllegalArgumentException(String.valueOf(nBufferedBlocks));
+        }
+        if (source==null) {
+            throw new NullPointerException("source==null");
         }
         this.is = is;
         this.source = source;
@@ -139,22 +129,22 @@ public final class BGZipIt implements FileIt<String> {
     }
 
     @Override
-    public File file() {
+    public String source() {
         return source;
     }
 
     private void fillBuffer() {
-        while (lines.isEmpty()) {
-            byte[][] blocks = readAndInflateBlocks(is, leftOverBytes, nBufferedBlocks);
-            if (blocks.length == 0) {
-                return;
-            }
+        byte[][] blocks = readAndInflateBlocks(is, leftOverBytes, nBufferedBlocks);
+        if (blocks.length>0) {
             int[] eolIndices = IntStream.range(0, blocks.length)
                     .parallel()
                     .flatMap(j -> eolIndices(j, blocks[j]))
                     .toArray();
             leftOverBytes = leftOverBytes(blocks, eolIndices);
             addToLines(blocks, eolIndices, lines);
+            if (lines.isEmpty() && leftOverBytes.length>0) {
+                fillBuffer();
+            }
         }
     }
 
@@ -205,6 +195,7 @@ public final class BGZipIt implements FileIt<String> {
             merged = merge(blocks, 0, 0, block, endIndex);
         }
         else {
+            assert index>=2;
             int startBlock = eolIndices[index-2];
             int startIndex = eolIndices[index-1] + 1;
             merged = merge(blocks, startBlock, startIndex, block, endIndex);
@@ -245,22 +236,6 @@ public final class BGZipIt implements FileIt<String> {
         }
     }
 
-    private static byte[] inflateBlock(byte[] ba) {
-        ByteArrayOutputStream os = new ByteArrayOutputStream(ba.length);
-        byte[] buffer = new byte[1<<13];
-        try (ByteArrayInputStream bais = new ByteArrayInputStream(ba);
-                GZIPInputStream gzis = new GZIPInputStream(bais)) {
-            int bytesRead;
-            while ((bytesRead = gzis.read(buffer)) != -1) {
-                os.write(buffer, 0, bytesRead);
-            }
-        }
-        catch (IOException e) {
-            Utilities.exit(e);
-        }
-        return os.toByteArray();
-    }
-
     private static byte[][] readAndInflateBlocks(InputStream is, byte[] initialBytes, int nBlocks) {
         ArrayList<byte[]> compressedBlocks = new ArrayList<>(nBlocks);
         for (int j=0; j<nBlocks; ++j) {
@@ -276,7 +251,7 @@ public final class BGZipIt implements FileIt<String> {
                 .parallel()
                 .map(ba -> inflateBlock(ba))
                 .toArray(byte[][]::new);
-        if (initialBytes.length>0) {
+        if (blocks.length>0 && initialBytes.length>0) {
             int newLength = initialBytes.length + blocks[0].length;
             byte[] prependedBlock = Arrays.copyOf(initialBytes, newLength);
             System.arraycopy(blocks[0], 0, prependedBlock, initialBytes.length,
@@ -317,6 +292,22 @@ public final class BGZipIt implements FileIt<String> {
             Utilities.exit(e);
         }
         return ba;
+    }
+
+    private static byte[] inflateBlock(byte[] ba) {
+        ByteArrayOutputStream os = new ByteArrayOutputStream(ba.length);
+        byte[] buffer = new byte[1<<13];
+        try (ByteArrayInputStream bais = new ByteArrayInputStream(ba);
+                GZIPInputStream gzis = new GZIPInputStream(bais)) {
+            int bytesRead;
+            while ((bytesRead = gzis.read(buffer)) != -1) {
+                os.write(buffer, 0, bytesRead);
+            }
+        }
+        catch (IOException e) {
+            Utilities.exit(e);
+        }
+        return os.toByteArray();
     }
 
     /**

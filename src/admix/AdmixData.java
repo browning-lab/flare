@@ -36,12 +36,12 @@ public class AdmixData {
      * @param chromData the immutable input data for a chromosome
      * @param params the analysis parameters
      * @throws IllegalArgumentException if
-     * {@code chromData.par() != params.fixedParams().par()}
+     * {@code chromData.par() != params.sampleData().par()}
      * @throws NullPointerException if
      * {@code chromData == null || params == null}
      */
     public AdmixData(AdmixChromData chromData, ParamsInterface params) {
-        if (chromData.par()!=params.fixedParams().par()) {
+        if (chromData.par()!=params.sampleData().par()) {
             throw new IllegalArgumentException("inconsistent data");
         }
         this.chromData = chromData;

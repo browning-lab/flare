@@ -65,23 +65,16 @@ public final class AdmixStates {
 
     /**
      * Constructs a new {@code AdmixStates} instance from the specified data.
-     * @param data immutable input data for a chromosome and the
-     * analysis parameters for local ancestry inference
-     * @param ibsHaps the IBS haplotype segments
-     * @throws IllegalArgumentException if
-     * {@code data.chromData() != ibsHaps.chromData()}
-     * @throws NullPointerException if
-     * {@code (chromData == null) || (ibsHaps == null)}
+     * @param ibsHaps the IBS haplotype segments for constructing composite
+     * reference haplotypes
+     * @throws NullPointerException if {@code (ibsHaps == null)}
      */
-    public AdmixStates(AdmixData data, IbsHaps ibsHaps) {
-        if (data.chromData()!=ibsHaps.chromData()) {
-            throw new IllegalArgumentException("inconsistent data");
-        }
-        AdmixPar par = data.params().fixedParams().par();
-        this.chromData = data.chromData();
-        this.refHapToPanel = data.params().fixedParams().refHapToPanel();
+    public AdmixStates(IbsHaps ibsHaps) {
+        AdmixPar par = ibsHaps.chromData().par();
+        this.chromData = ibsHaps.chromData();
+        this.refHapToPanel = chromData.sampleData().refHapToPanel();
         this.ibsHaps = ibsHaps;
-        this.hapList = ibsHaps.selectedHaps().selectedHaps();
+        this.hapList = ibsHaps.observedHaps().hapList();
         this.steps = ibsHaps.steps();
         this.nSteps = steps.size();
         this.targRefGT = chromData.targRefGT();
@@ -139,7 +132,7 @@ public final class AdmixStates {
      * any row of either specified two-dimensional array has fewer than
      * {@code this.maxStates()} elements.
      *
-     * @param hapListIndex an index in {@code this.selectedHaps().hapList()}
+     * @param hapListIndex an index in {@code this.observedHaps().hapList()}
      * @param refPanel the two-dimensional array in which the reference panel
      * for each model state will be stored
      * @param nMismatches the two-dimensional array in which the number of
@@ -148,7 +141,7 @@ public final class AdmixStates {
      *
      * @throws IndexOutOfBoundsException if
      * {@code (hapListIndex < 0) ||
-     * (hapListIndex >= this.ibsHaps().selectedHaps().hapList().size())}
+     * (hapListIndex >= this.ibsHaps().observedHaps().hapList().size())}
      * @throws IndexOutOfBoundsException if
      * {@code refPanel.length < this.chromData().targRefGT().nMarkers()}
      * @throws IndexOutOfBoundsException if

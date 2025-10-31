@@ -17,7 +17,7 @@
  */
 package vcf;
 
-import bref4.BrefRec;
+import blbutil.BooleanArray;
 import ints.IndexArray;
 import ints.IntArray;
 import java.util.Arrays;
@@ -78,23 +78,21 @@ public final class IntArrayRefGTRec implements RefGTRec {
 
     /**
      * Constructs a new {@code IntArrayRefGT} instance from the
-     * specified phased genotype data.
+     * specified phased genotype data.  The contract for this method is
+     * undefined if there exists {@code j} such that
+     * {@code (0 <= j) && (j < alleles.size()))} and
+     * {@code ((alleles.get(j) < 0) || (alleles.get(j) >= marker.nAlleles()))}
      * @param marker the marker
      * @param samples the list of samples
      * @param alleles the list of phased alleles
      * @throws IllegalArgumentException if
      * {@code alleles.size() != 2*samples.size()}
-     * @throws IllegalArgumentException if
-     * {@code alleles.valueSize() >= marker.nAlleles()}
      * @throws NullPointerException if
      * {@code marker==null || samples==null || alleles==null}
      */
-    public IntArrayRefGTRec(Marker marker, Samples samples, IndexArray alleles) {
+    public IntArrayRefGTRec(Marker marker, Samples samples, IntArray alleles) {
         if (alleles.size() != 2*samples.size()) {
             throw new IllegalArgumentException(String.valueOf(alleles.size()));
-        }
-        if (alleles.valueSize() > marker.nAlleles()) {
-            throw new IllegalArgumentException(String.valueOf(alleles.valueSize()));
         }
         this.marker = marker;
         this.samples = samples;
@@ -119,12 +117,12 @@ public final class IntArrayRefGTRec implements RefGTRec {
     }
 
     @Override
-    public boolean isAlleleCoded() {
+    public boolean isAlleleRecord() {
         return false;
     }
 
     @Override
-    public int majorAllele() {
+    public int nullRow() {
         return majorAllele(alleleCounts());
     }
 
@@ -149,13 +147,7 @@ public final class IntArrayRefGTRec implements RefGTRec {
 
     @Override
     public int alleleCount(int allele) {
-        int[] alCnts = alleleCounts();
-        if (allele==majorAllele(alCnts)) {
-            throw new IllegalArgumentException("major allele");
-        }
-        else {
-            return alCnts[allele];
-        }
+        return alleleCounts()[allele];
     }
 
     /**
@@ -172,7 +164,7 @@ public final class IntArrayRefGTRec implements RefGTRec {
 
     @Override
     public int size() {
-        return 2*samples.size();
+        return alleles.size();
     }
 
     @Override
@@ -211,8 +203,8 @@ public final class IntArrayRefGTRec implements RefGTRec {
     }
 
     @Override
-    public int nAlleleCodedHaps() {
-        return BrefRec.nonNullCnt(alleleToHaps());
+    public int nullRowAlleleCnt() {
+        return RefGTRec.nonNullCnt(alleleToHaps());
     }
 
     @Override
@@ -221,7 +213,7 @@ public final class IntArrayRefGTRec implements RefGTRec {
     }
 
     @Override
-    public int hapIndex(int allele, int copy) {
+    public int nonNullRowHap(int allele, int copy) {
         int[][] hapIndices = alleleToHaps();
         if (hapIndices[allele]==null) {
             throw new IllegalArgumentException("major allele");
@@ -234,19 +226,6 @@ public final class IntArrayRefGTRec implements RefGTRec {
     @Override
     public boolean isCarrier(int allele, int hap) {
         return get(hap)==allele;
-    }
-
-    /**
-     * Returns the data represented by {@code this} as a VCF
-     * record with a GT format field. The returned VCF record
-     * will have missing QUAL and INFO fields, will have "PASS"
-     * in the filter field, and will have a GT format field.
-     * @return the data represented by {@code this} as a VCF
-     * record with a GT format field
-     */
-    @Override
-    public String toString() {
-        return GTRec.toVcfRec(this);
     }
 
     @Override
@@ -265,5 +244,25 @@ public final class IntArrayRefGTRec implements RefGTRec {
             throw new IndexOutOfBoundsException(String.valueOf(index));
         }
         return alleles;
+    }
+
+    @Override
+    public String toString() {
+        return RefGTRec.toString(this);
+    }
+
+    @Override
+    public String toVcfRecord() {
+        return RefGTRec.toString(this);
+    }
+
+    @Override
+    public String toVcfRecord(BooleanArray isHaploid) {
+        if (isHaploid==null) {
+            return RefGTRec.toString(this);
+        }
+        else {
+            return RefGTRec.toString(this, isHaploid);
+        }
     }
 }

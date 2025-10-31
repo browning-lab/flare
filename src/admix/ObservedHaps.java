@@ -26,70 +26,70 @@ import java.util.Random;
 import java.util.stream.IntStream;
 
 /**
- * <p>Class {@code SelectedHaps} contains selected target and reference
- * haplotypes. The selected haplotypes are used to estimate model parameters.</p>
+ * <p>Class {@code ObservedHaps} contains a set of target and reference
+ * haplotypes that are used to estimate model parameters.</p>
  *
- * <p>Instances of {@code SelectedHaps} are immutable</p>
+ * <p>Instances of {@code ObservedHaps} are immutable</p>
  *
  * @author Brian L. Browning {@code <browning@uw.edu>}
  */
-public class SelectedHaps {
+public class ObservedHaps {
 
-    private final FixedParams fixedParams;
+    private final SampleData sampleData;
     private final boolean includeRefHaps;
-    private final WrappedIntArray selectedHaps;
-    private final WrappedIntArray[] panelToSelectedHapsIndices;
+    private final WrappedIntArray observedHaps;
+    private final WrappedIntArray[] panelToObservedHapsIndices;
 
     /**
-     * Constructs a {@code SelectedHaps} object from the specified data.
+     * Constructs a {@code ObservedHaps} object from the specified data.
      * All target haplotypes are selected.  If {@code includeRefHaps == true},
-     * then {@code fixedParams.par().em_haps()} haplotypes are randomly
+     * then {@code sampleData.par().em_haps()} haplotypes are randomly
      * selected from each reference panel.  If {@code includeRefHaps == true}
      * and the reference panel contains fewer than
-     * {@code fixedParams.par().em_haps()} haplotypes, then all haplotypes
+     * {@code sampleData.par().em_haps()} haplotypes, then all haplotypes
      * in the reference panel are selected.
      *
-     * @param fixedParams the fixed parameters.
+     * @param sampleData reference and target sample metadata
      * @param includeRefHaps {@code true} if the selected haplotypes should
      * include reference haplotypes
-     * @throws NullPointerException if {@code fixedParams == null}
+     * @throws NullPointerException if {@code (sampleData == null)}
      */
-    public SelectedHaps(FixedParams fixedParams, boolean includeRefHaps) {
-        int nTargSamples = fixedParams.targSamples().size();
+    public ObservedHaps(SampleData sampleData, boolean includeRefHaps) {
+        int nTargSamples = sampleData.targSamples().size();
         int nTargHaps =  nTargSamples << 1;
-        this.fixedParams = fixedParams;
+        this.sampleData = sampleData;
         this.includeRefHaps = includeRefHaps;
         WrappedIntArray[] panelToSelectedRefHaps = panelToSelectedRefHaps(
-                fixedParams, includeRefHaps);
-        this.selectedHaps = selectedHaps(nTargHaps, panelToSelectedRefHaps);
-        this.panelToSelectedHapsIndices = panelToSelectedHapsIndices(nTargHaps,
+                sampleData, includeRefHaps);
+        this.observedHaps = observedHaps(nTargHaps, panelToSelectedRefHaps);
+        this.panelToObservedHapsIndices = panelToObservedHapsIndices(nTargHaps,
                 panelToSelectedRefHaps);
     }
 
     /**
-     * Returns a {@code SelectedHaps} instance that is obtained by removing all
+     * Returns a {@code ObservedHaps} instance that is obtained by removing all
      * reference haplotypes from {@code this}.
-     * @return a {@code SelectedHaps} instance that is obtained by removing all
+     * @return a {@code ObservedHaps} instance that is obtained by removing all
      * reference haplotypes from {@code this}
      */
-    public SelectedHaps removeRefHaps() {
+    public ObservedHaps removeRefHaps() {
         if (includeRefHaps) {
             boolean includeRefHaplotypes = false;
-            return new SelectedHaps(fixedParams, includeRefHaplotypes);
+            return new ObservedHaps(sampleData, includeRefHaplotypes);
         }
         else {
             return this;
         }
     }
 
-    private static WrappedIntArray[] panelToSelectedRefHaps(FixedParams fixedParams,
+    private static WrappedIntArray[] panelToSelectedRefHaps(SampleData sampleData,
             boolean includeRefHaps) {
-        int nRefPanels = fixedParams.nRefPanels();
+        int nRefPanels = sampleData.nRefPanels();
         if (includeRefHaps) {
             // ref haplotype indices are shifted by nTargHaps;
-            long seed = fixedParams.par().seed();
-            int maxHaps = fixedParams.par().em_haps();
-            IntList[] panelToHaps = panelToShiftedRefHaps(fixedParams);
+            long seed = sampleData.par().seed();
+            int maxHaps = sampleData.par().em_haps();
+            IntList[] panelToHaps = panelToShiftedRefHaps(sampleData);
             return IntStream.range(0, nRefPanels)
                     .parallel()
                     .mapToObj(j -> randomSubset(panelToHaps[j], maxHaps, (seed+j)))
@@ -102,15 +102,15 @@ public class SelectedHaps {
         }
     }
 
-    private static IntList[] panelToShiftedRefHaps(FixedParams fixedParams) {
+    private static IntList[] panelToShiftedRefHaps(SampleData sampleData) {
         // ref haplotype indices are shifted by nTargHaps;
-        int nTargSamples = fixedParams.targSamples().size();
+        int nTargSamples = sampleData.targSamples().size();
         int nTargHaps = nTargSamples << 1;
-        IntList[] panelToShiftedRefHaps = IntStream.range(0, fixedParams.nRefPanels())
+        IntList[] panelToShiftedRefHaps = IntStream.range(0, sampleData.nRefPanels())
                 .parallel()
                 .mapToObj(j -> new IntList())
                 .toArray(IntList[]::new);
-        IntArray refHapToPanel = fixedParams.refHapToPanel();
+        IntArray refHapToPanel = sampleData.refHapToPanel();
         for (int h=0, n=refHapToPanel.size(); h<n; ++h) {
             int panel = refHapToPanel.get(h);
             int shiftedRefHap = nTargHaps + h;
@@ -119,19 +119,30 @@ public class SelectedHaps {
         return panelToShiftedRefHaps;
     }
 
-    private static IntArray randomSubset(IntList list, int maxSize, long seed) {
-        if (maxSize<list.size()) {
+    /**
+     * Returns a sorted list of {@code size} elements randomly selected
+     * without repetition from the specified list. The original list is
+     * returned if the specified list has fewer than {@code size} elements.
+     * @param list a list of integers
+     * @param size the maximum number of elements in the returned list
+     * @param seed a seed for random number generation
+     * @return a list of elements randomly selected from the specified list
+     * @throws NullPointerException if {@code list == null}
+     */
+    public static IntArray randomSubset(IntList list, int size, long seed) {
+        if (size<list.size()) {
             Random rand = new Random(seed);
             int[] ia = list.toArray();
-            Utilities.shuffle(ia, maxSize, rand);
-            return new WrappedIntArray(Arrays.copyOf(ia, maxSize));
+            Utilities.shuffle(ia, size, rand);
+            Arrays.sort(ia, 0, size);
+            return new WrappedIntArray(Arrays.copyOf(ia, size));
         }
         else {
             return new WrappedIntArray(list);
         }
     }
 
-    private static WrappedIntArray selectedHaps(int nTargHaps,
+    private static WrappedIntArray observedHaps(int nTargHaps,
             IntArray[] panelToRefHaps) {
         IntList hapList = new IntList(nTargHaps);
         for (int h=0; h<nTargHaps; ++h) {
@@ -146,7 +157,7 @@ public class SelectedHaps {
         return new WrappedIntArray(hapList);
     }
 
-    private static WrappedIntArray[] panelToSelectedHapsIndices(int nTargHaps,
+    private static WrappedIntArray[] panelToObservedHapsIndices(int nTargHaps,
             WrappedIntArray[] panelToSelectedRefHaps) {
         int nPanels = panelToSelectedRefHaps.length;
         WrappedIntArray[] panelToHapListIndices = new WrappedIntArray[nPanels];
@@ -163,12 +174,12 @@ public class SelectedHaps {
     }
 
     /**
-     * Returns the fixed parameters.
+     * Returns the reference and target sample metadata.
      *
-     * @return the fixed parameters
+     * @return the reference and target sample metadata
      */
-    public FixedParams fixedParams() {
-        return fixedParams;
+    public SampleData sampleData() {
+        return sampleData;
     }
 
     /**
@@ -186,20 +197,20 @@ public class SelectedHaps {
      * Returns the list of selected haplotypes.
      * @return the list of selected haplotypes
      */
-    public WrappedIntArray selectedHaps() {
-        return selectedHaps;
+    public WrappedIntArray hapList() {
+        return observedHaps;
     }
 
     /**
-     * Returns a list of indices of {@code this.selectedHaps()} elements
+     * Returns a list of indices of {@code this.observedHaps()} elements
      * that are reference haplotypes from the specified reference panel.
      * @param refPanel a reference panel index
-     * @return a list of indices of {@code this.selectedHaps()} elements
+     * @return a list of indices of {@code this.observedHaps()} elements
      * that are reference haplotypes from the specified reference panel
      * @throws IndexOutOfBoundsException if
-     * {@code (refPanel < 0) || (refPanel >= this.fixedParams().nRefPanels())}
+     * {@code (refPanel < 0) || (refPanel >= this.sampleData().nRefPanels())}
      */
-    public WrappedIntArray panelToSelectedHapsIndices(int refPanel) {
-        return panelToSelectedHapsIndices[refPanel];
+    public WrappedIntArray panelToObservedHapsIndices(int refPanel) {
+        return panelToObservedHapsIndices[refPanel];
     }
 }

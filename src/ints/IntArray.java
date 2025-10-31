@@ -133,16 +133,25 @@ public interface IntArray {
     /**
      * Returns a new {@code IntArray} instance that has the same
      * sequence of integers as the specified array of non-negative integers.
+     * The number of bytes (1, 2, or 4) used to store each element is the
+     * minimum number of bytes required to store {@code (valueSize < 1)}.
+     * Multiple values will be encoded in one byte if {@code (valueSize < 16)}.
      * @param ia the array of non-negative integers to be copied
      * @param valueSize the exclusive end of the range of
      * array values
      * @return a new {@code IntArray} instance that has
      * the same sequence of integers as the specified array
-     * @throws IllegalArgumentException if {@code valueSize < 1}
+     * @throws IllegalArgumentException if {@code (valueSize < 1)}
      * @throws IllegalArgumentException if
-     * {@code (ia[j] < 0 || ia[j] > valueSize)} for any index {@code j}
-     * satisfying  {@code (j >= 0 && j < ia.length)}
-     * @throws NullPointerException if {@code ia == null}
+     * {@code (valueSize <= 256) && ((ia[j] < 0) || (ia[j] > 256))}
+     * for any index {@code j} satisfying  {@code ((0 <= j) && (j < ia.length))}
+     * @throws IllegalArgumentException if
+     * {@code (valueSize <= 65536) && ((ia[j] < 0) || (ia[j] >= 65536))}
+     * for any index {@code j} satisfying  {@code ((0 <= j) && (j < ia.length))}
+     * @throws IllegalArgumentException if
+     * {@code (valueSize > 65536) && ((ia[j] < 0) || (ia[j] >= valueSize))}
+     * for any index {@code j} satisfying  {@code ((0 <= j) && (j < ia.length))}
+     * @throws NullPointerException if {@code (ia == null)}
      */
     static IntArray packedCreate(int[] ia, int valueSize) {
         if (valueSize < 1) {
@@ -152,10 +161,10 @@ public interface IntArray {
             return new PackedIntArray(ia, valueSize);
         }
         else if (valueSize<=256) {
-            return new UnsignedByteArray(ia, valueSize);
+            return new UnsignedByteArray(ia);
         }
         else if (valueSize<=65536) {
-            return new CharArray(ia, valueSize);
+            return new CharArray(ia);
         }
         else {
             return new WrappedIntArray(ia, valueSize);
@@ -165,15 +174,24 @@ public interface IntArray {
     /**
      * Returns a new {@code IntArray} instance that has the same
      * sequence of integers as the specified list of non-negative integers.
+     * The number of bytes (1, 2, or 4) used to store each element is the
+     * minimum number of bytes required to store {@code (valueSize < 1)}.
+     * Multiple values will be encoded in one byte if {@code (valueSize < 16)}.
      * @param il the list of non-negative integers to be copied
      * @param valueSize the exclusive end of the range of list values
      * @return a new {@code IntArray} instance that has
      * the same sequence of integers as the specified list
-     * @throws IllegalArgumentException if {@code valueSize < 1}
+     * @throws IllegalArgumentException if {@code (valueSize < 1)}
      * @throws IllegalArgumentException if
-     * {@code (il.get(j) < 0 || il.get(j)> valueSize)} for any index {@code j}
-     * satisfying  {@code (j >= 0 && j < il.size())}
-     * @throws NullPointerException if {@code il == null}
+     * {@code (valueSize <= 256) && ((il.get(j) < 0) || (il.get(j) > 256))}
+     * for any index {@code j} satisfying  {@code ((0 <= j) && (j < il.size()))}
+     * @throws IllegalArgumentException if
+     * {@code (valueSize <= 65536) && ((il.get(j) < 0) || (il.get(j) >= 65536))}
+     * for any index {@code j} satisfying  {@code ((0 <= j) && (j < il.size()))}
+     * @throws IllegalArgumentException if
+     * {@code (valueSize > 65536) && ((il.get(j) < 0) || (il.get(j) >= valueSize))}
+     * for any index {@code j} satisfying  {@code ((0 <= j) && (j < il.size()))}
+     * @throws NullPointerException if {@code (il == null)}
      */
     static IntArray packedCreate(IntList il, int valueSize) {
         if (valueSize < 1) {
@@ -183,10 +201,10 @@ public interface IntArray {
             return new PackedIntArray(il, valueSize);
         }
         else if (valueSize<=256) {
-            return new UnsignedByteArray(il, valueSize);
+            return new UnsignedByteArray(il);
         }
         else if (valueSize<=65536) {
-            return new CharArray(il, valueSize);
+            return new CharArray(il);
         }
         else {
             return new WrappedIntArray(il, valueSize);
@@ -196,59 +214,132 @@ public interface IntArray {
     /**
      * Returns a new {@code IntArray} instance that has the same
      * sequence of integers as the specified array of non-negative integers.
-     * Each integer of the returned object is stored in 1, 2, or 4 bytes.
+     * The number of bytes (1, 2, or 4) used to store each element is the
+     * minimum number of bytes required to store {@code (valueSize < 1)}.
      * @param ia the array of non-negative integers to be copied
-     * @param valueSize the exclusive end of the range of
-     * array values
+     * @param valueSize a value that is greater than all elements
+     * of the specified array
      * @return a new {@code IntArray} instance that has
      * the same sequence of integers as the specified array
-     * @throws IllegalArgumentException if {@code valueSize < 1}
+     * @throws IllegalArgumentException if {@code (valueSize < 1)}
      * @throws IllegalArgumentException if
-     * {@code (ia[j] < 0 || ia[j] > valueSize)} for any index {@code j}
-     * satisfying  {@code (j >= 0 && j < ia.length)}
-     * @throws NullPointerException if {@code ia == null}
+     * {@code (valueSize <= 256) && ((ia[j] < 0) || (ia[j] >= 256))}
+     * for any index {@code j} satisfying  {@code ((0 <= j) && (j < ia.length))}
+     * @throws IllegalArgumentException if
+     * {@code (valueSize <= 65536) && ((ia[j] < 0) || (ia[j] >= 65536))}
+     * for any index {@code j} satisfying  {@code ((0 <= j) && (j < ia.length))}
+     * @throws IllegalArgumentException if
+     * {@code (valueSize > 65536) && ((ia[j] < 0) || (ia[j] >= valueSize))}
+     * for any index {@code j} satisfying  {@code ((0 <= j) && (j < ia.length))}
+     * @throws NullPointerException if {@code (ia == null)}
      */
     static IntArray create(int[] ia, int valueSize) {
+        return create(ia, 0, ia.length, valueSize);
+    }
+
+    /**
+     * Returns a new {@code IntArray} instance that has the same
+     * sequence of integers as the specified list of non-negative integers.
+     * The number of bytes (1, 2, or 4) used to store each element is the
+     * minimum number of bytes required to store {@code (valueSize < 1)}.
+     * @param il the list of non-negative integers to be copied
+     * @param valueSize a value that is greater than all elements
+     * of the specified array
+     * @return a new {@code IntArray} instance that has
+     * the same sequence of integers as the specified list
+     * @throws IllegalArgumentException if {@code (valueSize < 1)}
+     * @throws IllegalArgumentException if
+     * {@code (valueSize <= 256) && ((il.get(j) < 0) || (il.get(j) >= 256))}
+     * for any index {@code j} satisfying  {@code ((0 <= j) && (j < il.size()))}
+     * @throws IllegalArgumentException if
+     * {@code (valueSize <= 65536) && ((il.get(j) < 0) || (il.get(j) >= 65536))}
+     * for any index {@code j} satisfying  {@code ((0 <= j) && (j < il.size()))}
+     * @throws IllegalArgumentException if
+     * {@code (valueSize > 65536) && ((il.get(j) < 0) || (il.get(j) >= valueSize))}
+     * for any index {@code j} satisfying  {@code ((0 <= j) && (j < il.size()))}
+     * @throws NullPointerException if {@code (il == null)}
+     */
+    static IntArray create(IntList il, int valueSize) {
+        return create(il, 0, il.size(), valueSize);
+    }
+
+    /**
+     * Returns a new {@code IntArray} instance that has the same
+     * sequence of integers as the specified array of non-negative integers.
+     * The number of bytes (1, 2, or 4) used to store each element is the
+     * minimum number of bytes required to store {@code (valueSize < 1)}.
+     * @param ia the array of non-negative integers to be copied
+     * @param from the first element to be included (inclusive)
+     * @param to the last element to be included (exclusive)
+     * @param valueSize the exclusive end of the range of array values
+     * @return a new {@code IntArray} instance that has
+     * the same sequence of integers as the specified array
+     * @throws IllegalArgumentException if {@code (valueSize < 1)}
+     * @throws IllegalArgumentException if
+     * {@code (valueSize <= 256) && ((ia.get(j) < 0) || (ia.get(j) >= 256))}
+     * for any index {@code j} satisfying  {@code ((0 <= j) && (j < ia.length))}
+     * @throws IllegalArgumentException if
+     * {@code (valueSize <= 65536) && ((ia.get(j) < 0) || (ia.get(j) >= 65536))}
+     * for any index {@code j} satisfying  {@code ((0 <= j) && (j < ia.length))}
+     * @throws IllegalArgumentException if
+     * {@code (valueSize > 65536) && ((ia.get(j) < 0) || (ia.get(j) >= valueSize))}
+     * for any index {@code j} satisfying  {@code ((0 <= j) && (j < ia.length))}
+     * @throws IndexOutOfBoundsException if
+     * {@code ((from < 0) || (to > ia.length))}
+     * @throws NegativeArraySizeException if {@code (to > from)}
+     * @throws NullPointerException if {@code (ia == null)}
+     */
+    static IntArray create(int[] ia, int from, int to, int valueSize) {
         if (valueSize < 1) {
             throw new IllegalArgumentException(String.valueOf(valueSize));
         }
         if (valueSize<=256) {
-            return new UnsignedByteArray(ia, valueSize);
+            return new UnsignedByteArray(ia, from, to);
         }
         else if (valueSize<=65536) {
-            return new CharArray(ia, valueSize);
+            return new CharArray(ia, from, to);
         }
         else {
-            return new WrappedIntArray(ia, valueSize);
+            return new WrappedIntArray(ia, from, to, valueSize);
         }
     }
 
     /**
      * Returns a new {@code IntArray} instance that has the same
      * sequence of integers as the specified list of non-negative integers.
-     * Each integer of the returned object is stored in 1, 2, or 4 bytes.
+     * The number of bytes (1, 2, or 4) used to store each element is the
+     * minimum number of bytes required to store {@code (valueSize < 1)}.
      * @param il the list of non-negative integers to be copied
-     * @param valueSize the exclusive end of the range of list values
+     * @param from the first element to be included (inclusive)
+     * @param to the last element to be included (exclusive)
+     * @param valueSize a value that is greater than all elements
+     * of the specified array
      * @return a new {@code IntArray} instance that has
      * the same sequence of integers as the specified list
-     * @throws IllegalArgumentException if {@code valueSize < 1}
+     * @throws IllegalArgumentException if {@code (valueSize < 1)}
      * @throws IllegalArgumentException if
-     * {@code (il.get(j) < 0 || il.get(j)> valueSize)} for any index {@code j}
-     * satisfying  {@code (j >= 0 && j < il.size())}
-     * @throws NullPointerException if {@code il == null}
+     * {@code (valueSize <= 256) && ((il.get(j) < 0) || (il.get(j) > 256))}
+     * for any index {@code j} satisfying  {@code ((0 <= j) && (j < il.size()))}
+     * @throws IllegalArgumentException if
+     * {@code (valueSize <= 65536) && ((il.get(j) < 0) || (il.get(j) >= 65536))}
+     * for any index {@code j} satisfying  {@code ((0 <= j) && (j < il.size()))}
+     * @throws IllegalArgumentException if
+     * {@code (valueSize > 65536) && ((il.get(j) < 0) || (il.get(j) >= valueSize))}
+     * for any index {@code j} satisfying  {@code ((0 <= j) && (j < il.size()))}
+     * @throws NullPointerException if {@code (il == null)}
      */
-    static IntArray create(IntList il, int valueSize) {
+    static IntArray create(IntList il, int from, int to, int valueSize) {
         if (valueSize < 1) {
             throw new IllegalArgumentException(String.valueOf(valueSize));
         }
         if (valueSize<=256) {
-            return new UnsignedByteArray(il, valueSize);
+            return new UnsignedByteArray(il, from, to);
         }
         else if (valueSize<=65536) {
-            return new CharArray(il, valueSize);
+            return new CharArray(il, from, to);
         }
         else {
-            return new WrappedIntArray(il, valueSize);
+            return new WrappedIntArray(il, from, to, valueSize);
         }
     }
 }

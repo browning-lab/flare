@@ -17,7 +17,8 @@
  */
 package vcf;
 
-import bref4.BrefRec;
+import blbutil.BooleanArray;
+import blbutil.Const;
 import ints.IndexArray;
 import ints.IntArray;
 import java.util.Arrays;
@@ -28,7 +29,7 @@ import java.util.stream.IntStream;
  * genotypes for a list of reference samples at a single marker.</p>
  *
  * <p>Class {@code AlleleRefGTRec} stores the haplotypes that carry each
- * non-major allele.</p>
+ * for all alleles except one.</p>
  *
  * <p>Instances of class {@code AlleleRefGTRec} are immutable.</p>
  *
@@ -55,7 +56,7 @@ public final class AlleleRefGTRec implements RefGTRec {
                 assert alleleToHaps[j]==null;
             }
         }
-        estBytes += 8;  // to store nHaps and majorAllele
+        estBytes += 8;  // to store nHaps and nullRow
         return estBytes;
     }
 
@@ -92,70 +93,89 @@ public final class AlleleRefGTRec implements RefGTRec {
         this.marker = gtp.marker();
         this.samples = gtp.samples();
         this.nHaps = 2*gtp.nSamples();
-        this.alleleToHaps = gtp.nonMajRefIndices();
-        int majAl = -1;
-        for (int j=0; j<alleleToHaps.length; ++j) {
-            if (alleleToHaps[j]==null) {
-                majAl = j;
-                break;
-            }
+        this.alleleToHaps = gtp.nonMajAlleleIndices();
+        int majAllele = 0;
+        while (alleleToHaps[majAllele]!=null) {
+            ++majAllele;
         }
-        this.majorAllele = majAl;
+        this.majorAllele = majAllele;
     }
 
     /**
-     * Constructs a new {@code AlleleRefGTRec} instance from the specified data.
-     * The specified {@code hapIndices} array is required to contain exactly one
-     * {@code null} element. The {@code null} element should be the major
-     * allele because this is most memory-efficient, but this requirement is not
-     * enforced. A haplotype index should be an element of only one array in
-     * {@code hapIndices}. If a haplotype index is an element of more than
-     * one array in {@code hapIndices}, it is assigned to the array with
-     * smallest index.
-
+     * Constructs a new {@code AlleleRefGTRec} instance from the specified
+     * data. The {@code isAlleleRecord()} method of the returned
+     * {@code RefGTRec} instance will return {@code true}. The contract for
+     * this method is undefined if any two integers in {@code alleleToHaps}
+     * are equal.
      * @param marker the marker
      * @param samples the samples
-     * @param hapIndices whose {@code j}-th element is a list of haplotypes
-     * sorted in increasing order that carry the {@code j}-th allele, or is
-     * {@code null}
+     * @param alleleToHaps an array of length {@code marker.nAlleles()} with
+     * a unique {@code null} element and whose {@code j}-th element
+     * is either {@code null} or an {@code int[]} whose elements are an
+     * increasing list of the haplotypes that carry the {@code j}-th allele
      *
-     * @throws IllegalArgumentException if the {@code (hapIndices} does
-     * not contain exactly one {@code null} element
-     * @throws IllegalArgumentException if any non-null element of
-     * {@code hapIndices} is not a sorted list of distinct haplotype indices
-     * between 0 (inclusive) and {@code 2*samples.size()} (exclusive)
      * @throws IllegalArgumentException if
-     * {@code marker.nAlleles() != hapIndices.length}
+     * {@code marker.nAlleles() != alleleToHaps.length}
+     * @throws IllegalArgumentException {@code alleleToHaps} does not
+     * have a unique {@code null} element
+     * @throws IllegalArgumentException if any non-null element of
+     * {@code alleleToHaps} is not a sorted list of distinct haplotype indices
+     * between 0 (inclusive) and {@code 2*samples.size()} (exclusive)
      * @throws NullPointerException if
-     * {@code marker == null || samples == null || hapIndices == null}
+     * {@code ((marker == null) || (samples == null) || (alleleToHaps == null))}
      */
-    public AlleleRefGTRec(Marker marker, Samples samples, int[][] hapIndices) {
+    public AlleleRefGTRec(Marker marker, Samples samples, int[][] alleleToHaps) {
+        if (marker.nAlleles()!=alleleToHaps.length) {
+            throw new IllegalArgumentException(String.valueOf(alleleToHaps.length));
+        }
         this.marker = marker;
         this.samples = samples;
         this.nHaps = 2*samples.size();
-        this.majorAllele = checkIndicesAndReturnNullIndex(hapIndices, nHaps);
-        this.alleleToHaps = deepCopy(hapIndices);
+        this.majorAllele = checkAlleleToHaps(alleleToHaps, nHaps);
+        this.alleleToHaps = deepCopy(alleleToHaps);
     }
 
-    static int checkIndicesAndReturnNullIndex(int[][] hapIndices, int nHaps) {
-        int majAllele = -1;
-        for (int j=0; j<hapIndices.length; ++j) {
-            if (hapIndices[j]==null) {
-                if (majAllele == -1) {
-                    majAllele = j;
+    /**
+     * Checks that the {@code alleleToHaps} array has a unique {@code null}
+     * element and that each non-{@code null} element of {@code alleleToHaps}
+     * is a list of increasing integers bounded between 0 (inclusive) and
+     * {@code nHaps} (exclusive). The contract for this method is undefined
+     * if any two integers in {@code alleleToHaps} are equal.
+     *
+     * @param alleleToHaps an array of length {@code marker.nAlleles()} with
+     * a unique {@code null} element and whose {@code j}-th element
+     * is either {@code null} or an {@code int[]} whose elements are an
+     * increasing list of the haplotypes that carry the {@code j}-th allele
+     * @param nHaps the number of haplotypes
+     * @return the index of the {@code null} element of {@code alleleToHaps}
+     * @throws IllegalArgumentException {@code alleleToHaps} does not
+     * have a unique {@code null} element
+     * @throws IllegalArgumentException if any non-{@code null}
+     * element of {@code alleleToHaps} is not sorted in increasing order
+     * @throws IllegalArgumentException if any integer in
+     * {@code alleleToHaps} is negative or greater than or equal to
+     * {@code nHaps}
+     * @throws NullPointerException if {@code (alleleToHaps == null)}
+     */
+    static int checkAlleleToHaps(int[][] alleleToHaps, int nHaps) {
+        int nullRow = -1;
+        for (int j=0; j<alleleToHaps.length; ++j) {
+            if (alleleToHaps[j]==null) {
+                if (nullRow == -1) {
+                    nullRow = j;
                 }
                 else {
                     throwArrayError();
                 }
             }
             else {
-                checkSorted(hapIndices[j], nHaps);
+                checkSorted(alleleToHaps[j], nHaps);
             }
         }
-        if (majAllele == -1) {
+        if (nullRow == -1) {
             throwArrayError();
         }
-        return majAllele;
+        return nullRow;
     }
 
     private static void throwArrayError() {
@@ -167,7 +187,7 @@ public final class AlleleRefGTRec implements RefGTRec {
             throwArrayError();
         }
         for (int k=1; k<ia.length; ++k) {
-            if (ia[k-1] >= ia[k]) {
+            if (ia[k-1] > ia[k]) {
                 throwArrayError();
             }
         }
@@ -208,8 +228,8 @@ public final class AlleleRefGTRec implements RefGTRec {
     }
 
     @Override
-    public int nAlleleCodedHaps() {
-        return BrefRec.nonNullCnt(alleleToHaps);
+    public int nullRowAlleleCnt() {
+        return RefGTRec.nonNullCnt(alleleToHaps);
     }
 
     @Override
@@ -261,12 +281,12 @@ public final class AlleleRefGTRec implements RefGTRec {
     }
 
     @Override
-    public boolean isAlleleCoded() {
+    public boolean isAlleleRecord() {
         return true;
     }
 
     @Override
-    public int majorAllele() {
+    public int nullRow() {
         return majorAllele;
     }
 
@@ -287,7 +307,7 @@ public final class AlleleRefGTRec implements RefGTRec {
     @Override
     public int alleleCount(int allele) {
         if (alleleToHaps[allele]==null) {
-            throw new IllegalArgumentException("major allele");
+            return alleleCounts()[allele];
         }
         else {
             return alleleToHaps[allele].length;
@@ -295,9 +315,9 @@ public final class AlleleRefGTRec implements RefGTRec {
     }
 
     @Override
-    public int hapIndex(int allele, int copy) {
+    public int nonNullRowHap(int allele, int copy) {
         if (alleleToHaps[allele]==null) {
-            throw new IllegalArgumentException("major allele");
+            throw new IllegalArgumentException("null row");
         }
         else {
             return alleleToHaps[allele][copy];
@@ -307,19 +327,6 @@ public final class AlleleRefGTRec implements RefGTRec {
     @Override
     public boolean isCarrier(int allele, int hap) {
         return get(hap)==allele;
-    }
-
-    /**
-     * Returns the data represented by {@code this} as a VCF
-     * record with a GT format field. The returned VCF record
-     * will have missing QUAL and INFO fields, will have "PASS"
-     * in the filter field, and will have a GT format field.
-     * @return the data represented by {@code this} as a VCF
-     * record with a GT format field
-     */
-    @Override
-    public String toString() {
-        return GTRec.toVcfRec(this);
     }
 
     @Override
@@ -338,5 +345,105 @@ public final class AlleleRefGTRec implements RefGTRec {
             throw new IndexOutOfBoundsException(String.valueOf(index));
         }
         return toIntArray();
+    }
+
+    @Override
+    public String toString() {
+        return toVcfRecord();
+    }
+
+    @Override
+    public String toVcfRecord() {
+        StringBuilder sb = new StringBuilder();
+        MarkerUtils.appendFirst8Fields(marker, sb); // no INFO/{AN,AC} update
+//        MarkerUtils.appendFirst8Fields(marker, nHaps, alleleCounts(), sb);
+        sb.append("\tGT");
+        int[] minorIndices = sortedMinorIndices();
+        int[] minorAlleles = minorAlleles(minorIndices);
+        int index = 0;
+        int nextMinorHap = (index<minorIndices.length) ? minorIndices[index] : nHaps;
+        for (int h=0; h<nHaps; ++h) {
+            sb.append((h & 0b1)==0 ? Const.tab : Const.phasedSep);
+            if (h==nextMinorHap) {
+                sb.append(minorAlleles[index++]);
+                nextMinorHap = (index<minorAlleles.length) ? minorIndices[index] : nHaps;
+            }
+            else {
+                sb.append(majorAllele);
+            }
+        }
+        return sb.toString();
+    }
+
+    @Override
+    public String toVcfRecord(BooleanArray isHaploid) {
+        if (isHaploid==null) {
+            return toVcfRecord();
+        }
+        else {
+            return toString0(isHaploid);
+        }
+    }
+
+    private String toString0(BooleanArray isHaploid) {
+        if (isHaploid.size()!=this.samples().size()) {
+            throw new IllegalArgumentException(String.valueOf(isHaploid));
+        }
+        StringBuilder sb = new StringBuilder();
+        MarkerUtils.appendFirst8Fields(marker, sb); // no INFO/{AN,AC} update
+        sb.append("\tGT");
+        int[] minorIndices = sortedMinorIndices();
+        int[] minorAlleles = minorAlleles(minorIndices);
+        int index = 0;
+        int nextMinorHap = (index<minorIndices.length) ? minorIndices[index] : nHaps;
+        for (int h=0; h<nHaps; ++h) {
+            if ((h & 0b1)==0 || isHaploid.get(h>>1)==false) {
+                sb.append((h & 0b1)==0 ? Const.tab : Const.phasedSep);
+                if (h==nextMinorHap) {
+                    sb.append(minorAlleles[index++]);
+                    nextMinorHap = (index<minorAlleles.length) ? minorIndices[index] : nHaps;
+                }
+                else {
+                    sb.append(majorAllele);
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    private int[] sortedMinorIndices() {
+        int cnt = 0;
+        for (int[] haps : alleleToHaps) {
+            if (haps!=null) {
+                cnt += haps.length;
+            }
+        }
+        int[] minorIndices = new int[cnt];
+        int start = 0;
+        for (int[] haps : alleleToHaps) {
+            if (haps!=null) {
+                System.arraycopy(haps, 0, minorIndices, start, haps.length);
+                start += haps.length;
+            }
+        }
+        assert start==minorIndices.length;
+        Arrays.sort(minorIndices);
+        return minorIndices;
+    }
+
+    private int[] minorAlleles(int[] minorIndices) {
+        int[] minorAlleles = new int[minorIndices.length];
+        for (int j=0; j<alleleToHaps.length; ++j) {
+            if (j!=majorAllele) {
+                int[] haps = alleleToHaps[j];
+                int index = 0;
+                for (int hap : haps) {
+                    index = Arrays.binarySearch(minorIndices, index, minorIndices.length, hap);
+                    assert index>=0;
+                    minorAlleles[index] = j;
+                }
+            }
+        }
+        return minorAlleles;
     }
 }

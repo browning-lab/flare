@@ -26,7 +26,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintWriter;
 import java.text.DecimalFormat;
 import java.util.stream.IntStream;
-import vcf.Marker;
 import vcf.MarkerUtils;
 import vcf.RefGT;
 
@@ -40,7 +39,7 @@ import vcf.RefGT;
  */
 public final class AdmixRecBuilder {
 
-    private final FixedParams fixedParams;
+    private final SampleData sampleData;
     private final RefGT targRefGT;
     private final int mStart;
     private final int mEnd;
@@ -48,26 +47,25 @@ public final class AdmixRecBuilder {
     private final int nAnc;
     private final int probStart;
     private final boolean printProbs;
-    private final StringBuilder[] sampleData;
+    private final StringBuilder[] recData;
 
     private int hapCnt;
 
     /**
      * Constructs a new {@code AdmixdRecBuilder} instance for the specified
      * data.
-     * @param fixedParams the fixed parameters for a local ancestry inference
-     * analysis
+     * @param sampleData reference and target sample metadata
      * @param targRefGT the phased reference and target haplotypes with
      * reference samples preceding target samples
      * @param start the first marker index (inclusive)
      * @param end the last marker index (exclusive)
      * @throws IllegalArgumentException if
-     * {@code (fixedParams.refSamples().size() + fixedParams.targSamples().size())<<1 != targRefGT.nHaps()}
+     * {@code (sampleData.refSamples().size() + sampleData.targSamples().size())<<1 != targRefGT.nHaps()}
      * @throws IndexOutOfBoundsException if
      * {@code (start < 0 || end > targRefGT.nMarkers() || end < start)}
-     * @throws NullPointerException if {@code fixedParams == null || targRefGT == null}
+     * @throws NullPointerException if {@code sampleData == null || targRefGT == null}
      */
-    public AdmixRecBuilder(FixedParams fixedParams, RefGT targRefGT, int start,
+    public AdmixRecBuilder(SampleData sampleData, RefGT targRefGT, int start,
             int end) {
         if (start<0) {
             throw new IndexOutOfBoundsException(String.valueOf(start));
@@ -75,23 +73,23 @@ public final class AdmixRecBuilder {
         if (end<start || end>targRefGT.nMarkers()) {
             throw new IndexOutOfBoundsException(String.valueOf(end));
         }
-        int nHaps = (fixedParams.refSamples().size() + fixedParams.targSamples().size())<<1;
+        int nHaps = (sampleData.refSamples().size() + sampleData.targSamples().size())<<1;
         if (targRefGT.nHaps() != nHaps) {
             throw new IllegalArgumentException(String.valueOf(targRefGT.nHaps()));
         }
         int mSize = end - start;
-        this.fixedParams = fixedParams;
+        this.sampleData = sampleData;
         this.targRefGT = targRefGT;
         this.mStart = start;
         this.mEnd = end;
-        this.nTargHaps = (fixedParams.targSamples().size() << 1);
-        this.nAnc = fixedParams.nAnc();
-        this.printProbs = fixedParams.par().probs();
+        this.nTargHaps = (sampleData.targSamples().size() << 1);
+        this.nAnc = sampleData.nAnc();
+        this.printProbs = sampleData.par().probs();
         this.probStart = nAnc*start;
-        this.sampleData = new StringBuilder[mSize];
+        this.recData = new StringBuilder[mSize];
         int charPerHap = printProbs ? nAnc<<3 : nAnc<<1;
         for (int j=0; j<mSize; ++j) {
-            sampleData[j] = new StringBuilder(80 + charPerHap*nTargHaps);
+            recData[j] = new StringBuilder(80 + charPerHap*nTargHaps);
         }
         this.hapCnt = 0;
     }
@@ -112,8 +110,8 @@ public final class AdmixRecBuilder {
      * @return the fixed parameters for a local ancestry inference
      * analysis
      */
-    public FixedParams fixedParams() {
-        return fixedParams;
+    public SampleData sampleData() {
+        return sampleData;
     }
 
     /**
@@ -166,7 +164,7 @@ public final class AdmixRecBuilder {
         int hap2 = hapCnt++;
         for (int m=mStart, pStart=probStart; m<mEnd; ++m, pStart+=nAnc) {
             int pEnd = pStart + nAnc;
-            StringBuilder sb = sampleData[m-mStart];
+            StringBuilder sb = recData[m-mStart];
             sb.append(Const.tab);
             sb.append(targRefGT.allele(m, hap1));
             sb.append(Const.phasedSep);
@@ -204,7 +202,7 @@ public final class AdmixRecBuilder {
         int hap1 = hapCnt++;
         int hap2 = hapCnt++;
         for (int m=mStart; m<mEnd; ++m) {
-            StringBuilder sb = sampleData[m-mStart];
+            StringBuilder sb = recData[m-mStart];
             sb.append(Const.tab);
             sb.append(targRefGT.allele(m, hap1));
             sb.append(Const.phasedSep);
@@ -231,7 +229,7 @@ public final class AdmixRecBuilder {
      * records as an {@code UnsignedByteArray}.
      * @return an unsigned byte array containing compressed VCF records
      * @throws IllegalStateException if
-     * {@code this.hapCnt() != (this.fixedParams().targSamples().size() << 1)}
+     * {@code this.hapCnt() != (this.sampleData().targSamples().size() << 1)}
      * when this method is invoked
      */
     public UnsignedByteArray toUnsignedByteArray() {
@@ -248,7 +246,7 @@ public final class AdmixRecBuilder {
       *@param out the {@code PrintWriter} to which the VCF record will be
      * printed
      * @throws IllegalStateException if
-     * {@code this.hapCnt() != (this.fixedParams().targSamples().size() << 1)}
+     * {@code this.hapCnt() != (this.sampleData().targSamples().size() << 1)}
      * when this method is invoked
      * @throws NullPointerException if {@code out == null}
      */
@@ -257,16 +255,12 @@ public final class AdmixRecBuilder {
             throw new IllegalStateException(String.valueOf(hapCnt));
         }
         for (int m=mStart; m<mEnd; ++m) {
-            Marker marker = targRefGT.marker(m);
-            MarkerUtils.printFirst7Fields(marker, out);
-            out.print(Const.tab);
-            out.print(marker.info());
-            out.print(Const.tab);
-            out.print("GT:AN1:AN2");                        // FORMAT
+            MarkerUtils.printFirst8Fields(targRefGT.marker(m), out);
+            out.print("\tGT:AN1:AN2");           // FORMAT
             if (printProbs) {
                 out.print(":ANP1:ANP2");
             }
-            out.println(sampleData[m-mStart]);
+            out.println(recData[m-mStart]);
         }
     }
 
@@ -279,16 +273,39 @@ public final class AdmixRecBuilder {
     public static class ProbFormatter {
 
         private final String[] probs;
+        private final int factor;
 
         /**
          * Constructs a new {@code ProbFormatter} instance.
+         * @param decimalPlaces the number of decimal places after rounding
+         * @throws IllegalArgumentException if
+         * {@code (decimalPlaces != 2) || (decimalPlaces != 3)}
          */
-        public ProbFormatter() {
-            DecimalFormat df = new DecimalFormat("#.##");
-            this.probs = IntStream.range(0, 101)
-                    .parallel()
-                    .mapToObj(j -> df.format(0.01*j))
-                    .toArray(String[]::new);
+        public ProbFormatter(int decimalPlaces) {
+            switch (decimalPlaces) {
+                case 2:
+                    {
+                        DecimalFormat df = new DecimalFormat("#.##");
+                        this.probs = IntStream.range(0, 101)
+                                .parallel()
+                                .mapToObj(j -> df.format(0.01*j))
+                                .toArray(String[]::new);
+                        this.factor = 100;
+                        break;
+                    }
+                case 3:
+                    {
+                        DecimalFormat df = new DecimalFormat("#.###");
+                        this.probs = IntStream.range(0, 1001)
+                                .parallel()
+                                .mapToObj(j -> df.format(0.001*j))
+                                .toArray(String[]::new);
+                        this.factor = 1000;
+                        break;
+                    }
+                default:
+                    throw new IllegalArgumentException(String.valueOf(decimalPlaces));
+            }
         }
 
         /**
@@ -303,7 +320,7 @@ public final class AdmixRecBuilder {
             if (prob<0f || prob>1f) {
                 throw new IllegalArgumentException(String.valueOf(prob));
             }
-            return probs[(int) Math.rint(100*prob)];
+            return probs[(int) Math.rint(factor*prob)];
         }
     }
 }

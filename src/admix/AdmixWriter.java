@@ -18,7 +18,6 @@
 package admix;
 
 import blbutil.BGZIPOutputStream;
-import blbutil.Const;
 import blbutil.FileUtil;
 import blbutil.Utilities;
 import ints.UnsignedByteArray;
@@ -28,9 +27,9 @@ import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintWriter;
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
 import vcf.Samples;
+import vcf.VcfHeader;
+import vcf.VcfWriter;
 
 /**
  * <p>Class {@code AdmixWriter} contains methods for writing
@@ -43,11 +42,6 @@ import vcf.Samples;
  */
 public class AdmixWriter implements Closeable {
 
-    private static final String CHROM_PREFIX = "#CHROM" + Const.tab + "POS"
-            + Const.tab + "ID" + Const.tab + "REF" + Const.tab + "ALT"
-            + Const.tab + "QUAL" + Const.tab + "FILTER" + Const.tab + "INFO"
-            + Const.tab + "FORMAT";
-
     private final AdmixPar par;
     private final int nTargHaps;
     private final int nAnc;
@@ -58,41 +52,43 @@ public class AdmixWriter implements Closeable {
      * Constructs a new {@code AdmixWriter} instance from the specified data.
      * The Java virtual machine will exit with an error message if there
      * is an error writing the VCF header lines.
-     * @param fixedParams the fixed parameters for a local ancestry inference
+     * @param sampleData the fixed parameters for a local ancestry inference
      * analysis
-     * @throws NullPointerException if {@code fixedParams == null}
+     * @param targVcfHeader the target VCF meta-information lines and header
+     * line
+     * @throws NullPointerException if
+     * {@code ((sampleData == null) || (targVcfHeader == null))}
      */
-    public AdmixWriter(FixedParams fixedParams) {
-        Samples targSamples = fixedParams.targSamples();
-        this.par = fixedParams.par();
+    public AdmixWriter(SampleData sampleData, VcfHeader targVcfHeader) {
+        Samples targSamples = sampleData.targSamples();
+        this.par = sampleData.par();
         this.outFile = new File(par.out() + ".anc.vcf.gz");
         this.nTargHaps = targSamples.size() << 1;
-        this.nAnc = fixedParams.nAnc();
+        this.nAnc = sampleData.nAnc();
         this.os = FileUtil.bufferedOutputStream(outFile, false);
-        printVcfHeader(fixedParams, outFile, os);
+        printVcfHeader(sampleData, targVcfHeader, outFile, os);
     }
 
-    private static void printVcfHeader(FixedParams fixedParams,
-            File outFile, OutputStream os) {
+    private static void printVcfHeader(SampleData sampleData,
+            VcfHeader targVcfHeader, File outFile, OutputStream os) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (PrintWriter out = new PrintWriter(
                 new BGZIPOutputStream(baos, false))) {
-            printVcfHeader(fixedParams, out);
+            printVcfHeader(sampleData, targVcfHeader, out);
         }
         UnsignedByteArray byteArray = new UnsignedByteArray(baos);
         print(byteArray, os, outFile);
     }
 
-    private static void printVcfHeader(FixedParams fixedParams, PrintWriter out) {
-        int nAnc = fixedParams.nAnc();
-        String[] ancIds = fixedParams.ancIds();
-        Samples targSamples = fixedParams.targSamples();
-        boolean printProbs = fixedParams.par().probs();
-        out.println("##fileformat=VCFv4.2");
-        out.print("##filedate=");
-        out.println(now());
-        out.print("##source=");
-        out.println(AdmixMain.REVISION);
+    private static void printVcfHeader(SampleData sampleData,
+            VcfHeader targVcfHeader, PrintWriter out) {
+        int nAnc = sampleData.nAnc();
+        String[] ancIds = sampleData.ancIds();
+        Samples targSamples = sampleData.targSamples();
+        boolean printProbs = sampleData.par().probs();
+        VcfWriter.copyMetaInfoLines(targVcfHeader, out);
+        out.println(VcfHeader.metaInfoLine("flareCommand",
+                AdmixPar.flareCommand(), true));
         out.println("##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">");
         out.println("##FORMAT=<ID=AN1,Number=1,Type=Integer,Description=\"Ancestry of first haplotype\">");
         out.println("##FORMAT=<ID=AN2,Number=1,Type=Integer,Description=\"Ancestry of second haplotype\">");
@@ -111,19 +107,7 @@ public class AdmixWriter implements Closeable {
             out.print(j);
         }
         out.println(">");
-        out.print(CHROM_PREFIX);
-        for (int j=0, n=targSamples.size(); j<n; ++j) {
-            out.print(Const.tab);
-            out.print(targSamples.id(j));
-        }
-        out.println();
-    }
-
-    private static String now() {
-        String dateFormat = "yyyyMMdd";
-        Calendar cal = Calendar.getInstance();
-        SimpleDateFormat sdf = new SimpleDateFormat(dateFormat);
-        return sdf.format(cal.getTime());
+        VcfWriter.writeHeaderLine(targSamples.ids(), out);
     }
 
     /**

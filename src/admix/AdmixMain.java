@@ -34,9 +34,8 @@ import java.util.Optional;
 public class AdmixMain {
 
     static final String EXECUTABLE = "flare.jar";
-    static final String REVISION = "flare.24Jul25.e5b.jar";
-    static final String PROGRAM = EXECUTABLE + "  [ version 0.5.3, 24Jul25.e5b ]";
-    static final String COPYRIGHT = "Copyright (C) 2021-2023 Brian L. Browning";
+    static final String VERSION = "flare version 0.6.0 [__REV__]";
+    static final String COPYRIGHT = "Copyright (C) 2021-2025 Brian L. Browning";
     static final String COMMAND = "java -jar " + EXECUTABLE;
 
     private static final String HELP_MESSAGE = "Enter \"" + COMMAND
@@ -65,7 +64,12 @@ public class AdmixMain {
             if (par.model()!=null) {
                 printWarnings(par, log);
             }
-            runAnalysis(par, log);
+            if (par.panel_probs()) {
+                estimatePanelProbs(par, log);
+            }
+            else {
+                estimateAncestry(par, log);
+            }
             Utilities.duoPrintln(log, endInfo(t0));
         }
         catch (Throwable t) {
@@ -75,14 +79,9 @@ public class AdmixMain {
     }
 
     private static void printWarnings(AdmixPar par, PrintWriter log) {
-        boolean printWarnings = par.anc_panel()!=null
-                || par.gen()!=AdmixPar.DEF_GEN
-                || par.array()==true;
+        boolean printWarnings = par.gen()!=AdmixPar.DEF_GEN || par.array()==true;
         if (printWarnings) {
              Utilities.duoPrintln(log, "");
-        }
-        if (par.anc_panel()!=null) {
-            printAncPanelWarning(log);
         }
         if (par.gen()!=AdmixPar.DEF_GEN) {
             printGenWarning(log);
@@ -95,11 +94,6 @@ public class AdmixMain {
         }
     }
 
-    private static void printAncPanelWarning(PrintWriter log) {
-        String msg = "Warning: Ignoring anc-panel file since a model file is specified";
-        Utilities.duoPrintln(log, msg);
-    }
-
     private static void printGenWarning(PrintWriter log) {
         String msg = "Warning: Ignoring 'gen' parameter since a model file is specified";
         Utilities.duoPrintln(log, msg);
@@ -110,32 +104,33 @@ public class AdmixMain {
         Utilities.duoPrintln(log, msg);
     }
 
-    private static void runAnalysis(AdmixPar par, PrintWriter log) {
+    private static void estimateAncestry(AdmixPar par, PrintWriter log) {
         try (AdmixChromData.It chromIt = new AdmixChromData.It(par)) {
-            FixedParams fixedParams = FixedParams.create(par,
-                    chromIt.refSamples(), chromIt.targSamples());
+            SampleData sampleData = SampleData.create(par, chromIt.refSamples(),
+                    chromIt.targSamples());
             EstimatedGlobalAncProportions globalAncProbs = new EstimatedGlobalAncProportions(
-                    chromIt.targSamples().ids(), fixedParams.ancIds());
+                    chromIt.targSamples().ids(), sampleData.ancIds());
 
-            try (AdmixWriter admixWriter = new AdmixWriter(fixedParams)) {
+            try (AdmixWriter admixWriter = new AdmixWriter(sampleData, chromIt.targVcfHeader())) {
                 Optional<AdmixChromData> optChromData = chromIt.nextChrom();
                 if (optChromData.isPresent()==false) {
                     missingDataError(par);
                 }
                 AdmixChromData chromData = optChromData.get();
-                boolean includeRefHaps = oneAncPerPanel(fixedParams);
-                SelectedHaps selectedHaps = new SelectedHaps(fixedParams, includeRefHaps);
-                IbsHaps ibsHaps = new IbsHaps(chromData, selectedHaps);
+                boolean includeRefHaps =
+                        (sampleData.nAnc() == sampleData.nRefPanels());
+                ObservedHaps observedHaps = new ObservedHaps(sampleData, includeRefHaps);
+                IbsHaps ibsHaps = new IbsHaps(chromData, observedHaps);
 
-                ParamsInterface params = ParamEstimator.getParams(fixedParams, ibsHaps, log);
+                ParamsInterface params = ParamEstimator.getParams(ibsHaps, log);
                 writeModelFile(params);
 
                 AncEstimator.estAncestry(params, ibsHaps, globalAncProbs, admixWriter);
                 optChromData = chromIt.nextChrom();
                 while (optChromData.isPresent()) {
                     chromData = optChromData.get();
-                    selectedHaps = selectedHaps.removeRefHaps();
-                    ibsHaps = new IbsHaps(chromData, selectedHaps);
+                    observedHaps = observedHaps.removeRefHaps();
+                    ibsHaps = new IbsHaps(chromData, observedHaps);
                     AncEstimator.estAncestry(params, ibsHaps, globalAncProbs, admixWriter);
                     optChromData = chromIt.nextChrom();
                 }
@@ -145,21 +140,29 @@ public class AdmixMain {
         }
     }
 
-    private static boolean oneAncPerPanel(FixedParams fixedParams) {
-        int nAnc = fixedParams.nAnc();
-        if (nAnc!=fixedParams.nRefPanels()) {
-            return false;
-        }
-        for (int i=0; i<nAnc; ++i) {
-            if (fixedParams.ancPanels(i).size()!=1) {
-                return false;
+    private static void estimatePanelProbs(AdmixPar par, PrintWriter log) {
+        try (AdmixChromData.It chromIt = new AdmixChromData.It(par)) {
+            SampleData sampleData = chromIt.sampleData();
+            try (PrintWriter out = FileUtil.printWriter(new File(par.out() + ".panels"))) {
+                PanelEstimator.printPanelProbsHeader(sampleData, out);
+                Optional<AdmixChromData> optChromData = chromIt.nextChrom();
+                if (optChromData.isPresent()==false) {
+                    missingDataError(par);
+                }
+                boolean includeRefHaps = false;
+                ObservedHaps observedHaps = new ObservedHaps(sampleData, includeRefHaps);
+                while (optChromData.isPresent()) {
+                    IbsHaps ibsHaps = new IbsHaps(optChromData.get(), observedHaps);
+                    PanelEstimator.writePanelProbs(ibsHaps, out);
+                    optChromData = chromIt.nextChrom();
+                }
             }
+            Utilities.duoPrint(log, statistics(chromIt));
         }
-        return true;
     }
 
     private static void writeModelFile(ParamsInterface params) {
-        AdmixPar par = params.fixedParams().par();
+        AdmixPar par = params.sampleData().par();
         File modelFile =  new File(par.out() + ".model");
         try (PrintWriter out = FileUtil.printWriter(modelFile)) {
             out.print(params.toString());
@@ -168,7 +171,7 @@ public class AdmixMain {
 
     private static AdmixPar getPar(String[] args) {
         if (args.length==0 || args[0].toLowerCase().startsWith("help")) {
-            System.out.println(PROGRAM);
+            System.out.println(VERSION);
             System.out.println();
             System.out.println(AdmixPar.usage());
             System.exit(0);
@@ -197,7 +200,7 @@ public class AdmixMain {
         if (file.equals(par.gt()) || file.equals(par.ref()) || file.equals(par.map())
                 || file.equals(par.gtSamplesFile()) || file.equals(par.gt_ancestries())
                 || file.equals(par.excludemarkers())
-                || file.equals(par.ref_panel()) || file.equals(par.anc_panel())) {
+                || file.equals(par.ref_panel())) {
             String err = "An output file has the same name as an input file";
             String info = Const.nl + "Error      :  " + err
                     + Const.nl     + "Filename   :  " + file;
@@ -221,7 +224,7 @@ public class AdmixMain {
         sb.append(Const.nl);
         sb.append(Const.nl);
         sb.append("Program             :  ");
-        sb.append(PROGRAM);
+        sb.append(VERSION);
         sb.append(Const.nl);
         sb.append("Start Time          :  ");
         sb.append(Utilities.timeStamp());
@@ -271,43 +274,12 @@ public class AdmixMain {
     }
 
     private static void addOptionalParams(AdmixPar par, StringBuilder sb) {
-        if (par.anc_panel()!=null) {
-            sb.append(Const.nl);
-            sb.append("  anc-panel         :  ");
-            sb.append(par.anc_panel());
-        }
-        sb.append(Const.nl);
-        sb.append("  array             :  ");
-        sb.append(par.array());
-        sb.append(Const.nl);
-        sb.append("  min-maf           :  ");
-        sb.append(par.min_maf());
-        sb.append(Const.nl);
-        if (par.array()==false) {
-            sb.append("  min-mac           :  ");
-            sb.append(par.min_mac());
-            sb.append(Const.nl);
-        }
-        sb.append("  probs             :  ");
-        sb.append(par.probs());
-        sb.append(Const.nl);
-        if (par.model()==null) {
-            sb.append("  gen               :  ");
-            sb.append(par.gen());
-        }
-        else {
-            sb.append("  model             :  ");
-            sb.append(par.model());
-        }
-        sb.append(Const.nl);
-        sb.append("  em                :  ");
-        sb.append(par.em());
         if (par.gt_samples()!=null) {
             sb.append(Const.nl);
             sb.append("  gt-samples        :  ");
             sb.append(par.gt_samples());
         }
-        if (par.gt_ancestries()!=null) {
+        if (par.gt_ancestries()!=null && par.panel_probs()==false) {
             sb.append(Const.nl);
             sb.append("  gt-ancestries     :  ");
             sb.append(par.gt_ancestries());
@@ -316,6 +288,48 @@ public class AdmixMain {
             sb.append(Const.nl);
             sb.append("  excludemarkers    :  ");
             sb.append(par.excludemarkers());
+        }
+        sb.append(Const.nl);
+        sb.append("  array             :  ");
+        sb.append(par.array());
+        sb.append(Const.nl);
+        sb.append("  min-maf           :  ");
+        sb.append(par.min_maf());
+        if (par.array()==false) {
+            sb.append(Const.nl);
+            sb.append("  min-mac           :  ");
+            sb.append(par.min_mac());
+        }
+        if (par.panel_probs()==false) {
+            sb.append(Const.nl);
+            sb.append("  probs             :  ");
+            sb.append(par.probs());
+            if (par.model()==null) {
+                sb.append(Const.nl);
+                sb.append("  gen               :  ");
+                sb.append(par.gen());
+            }
+            else {
+                sb.append(Const.nl);
+                sb.append("  model             :  ");
+                sb.append(par.model());
+            }
+            sb.append(Const.nl);
+            sb.append("  em                :  ");
+            sb.append(par.em());
+            if (par.em()==true) {
+                sb.append(Const.nl);
+                sb.append("  update-p          :  ");
+                sb.append(par.update_p());
+            }
+        }
+        if (par.panel_probs()==true) {
+            sb.append(Const.nl);
+            sb.append("  panel-probs       :  ");
+            sb.append(par.panel_probs());
+            sb.append(Const.nl);
+            sb.append("  panel-cm          :  ");
+            sb.append(par.panel_cm());
         }
         sb.append(Const.nl);
         sb.append("  nthreads          :  ");
@@ -367,20 +381,30 @@ public class AdmixMain {
             sb.append("  em-haps           :  ");
             sb.append(par.em_haps());
         }
-        if (par.em_anc_prob()!=AdmixPar.DEF_EM_ANC_PROB) {
-            sb.append(Const.nl);
-            sb.append("  em-anc-prob       :  ");
-            sb.append(par.em_its());
-        }
         if (par.delta_mu()!=AdmixPar.DEF_DELTA_MU) {
             sb.append(Const.nl);
             sb.append("  delta-mu          :  ");
             sb.append(par.delta_mu());
         }
-        if (par.min_mu()!=AdmixPar.DEF_MIN_MU) {
+        if (par.delta_p()!=AdmixPar.DEF_DELTA_P) {
             sb.append(Const.nl);
-            sb.append("  min-mu            :  ");
-            sb.append(par.min_mu());
+            sb.append("  delta-p           :  ");
+            sb.append(par.delta_p());
+        }
+        if (par.panel_markers()!=AdmixPar.DEF_PANEL_MARKERS) {
+            sb.append(Const.nl);
+            sb.append("  panel-markers     :  ");
+            sb.append(par.panel_markers());
+        }
+        if (par.panel_haps()!=AdmixPar.DEF_PANEL_HAPS) {
+            sb.append(Const.nl);
+            sb.append("  panel-haps        :  ");
+            sb.append(par.panel_haps());
+        }
+        if (par.panel_ne()!=AdmixPar.DEF_PANEL_NE) {
+            sb.append(Const.nl);
+            sb.append("  panel-ne          :  ");
+            sb.append(par.panel_ne());
         }
         if (par.debug()!=AdmixPar.DEF_DEBUG) {
             sb.append(Const.nl);

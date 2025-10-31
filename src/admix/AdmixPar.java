@@ -42,7 +42,6 @@ public final class AdmixPar {
     private final String out;
 
     // Optional parameters
-    private final File anc_panel;
     private final boolean array;
     private final float min_maf;
     private final int min_mac;
@@ -50,12 +49,15 @@ public final class AdmixPar {
     private final float gen;
     private final File model;
     private final boolean em;
-    private final int nthreads;
-    private final long seed;
+    private final boolean update_p;
     private final String gt_samples;
     private final File gtSamplesFile;
     private final File gt_ancestries;
     private final File excludemarkers;
+    private final boolean panel_probs;
+    private final float panel_cm;
+    private final int nthreads;
+    private final long seed;
 
     // Undocumented parameters
     private final float panel_weight;
@@ -66,9 +68,11 @@ public final class AdmixPar {
     private final float ibs_recycle;
     private final int em_its;
     private final int em_haps;
-    private final float em_anc_prob;
     private final float delta_mu;
-    private final float min_mu;
+    private final float delta_p;
+    private final int panel_markers;
+    private final int panel_haps;
+    private final int panel_ne;
     private final boolean debug;
 
     private static final boolean DEF_ARRAY = false;
@@ -77,6 +81,9 @@ public final class AdmixPar {
     private static final boolean DEF_PROBS = false;
     static final float DEF_GEN = 10f;
     private static final boolean DEF_EM = true;
+    static final boolean DEF_UPDATE_P = false;
+    static final boolean DEF_PANEL_PROBS = false;
+    static final float DEF_PANEL_CM = 0.5f;
     private static final int DEF_THREADS = Runtime.getRuntime().availableProcessors();
     private static final long DEF_SEED = -99999;
 
@@ -88,9 +95,11 @@ public final class AdmixPar {
     static final float DEF_IBS_RECYCLE = 4.0f;
     static final int DEF_EM_ITS = 20;
     static final int DEF_EM_HAPS = 100;
-    static final float DEF_EM_ANC_PROB = 0.9f;
-    static final float DEF_DELTA_MU = 0.05f;
-    static final float DEF_MIN_MU = 0.001f;
+    static final float DEF_DELTA_MU = 0.03f;
+    static final float DEF_DELTA_P = 0.01f;
+    static final int DEF_PANEL_MARKERS = 10;
+    static final int DEF_PANEL_HAPS = 1000;
+    static final int DEF_PANEL_NE = 100000;
     static final boolean DEF_DEBUG = false;
 
     /**
@@ -124,9 +133,6 @@ public final class AdmixPar {
         out = Validate.stringArg("out", argsMap, true, null, null);
 
         // Optional parameters
-        anc_panel = null; // anc_panel is not currently a valid parameter
-//      anc_panel = Validate.getFile(Validate.stringArg("anc-panel", argsMap, false,
-//              null, null));
         array = Validate.booleanArg("array", argsMap, false, DEF_ARRAY);
         min_maf = Validate.floatArg("min-maf", argsMap, false, DEF_MIN_MAF, -FMAX, Math.nextDown(0.5f));
         min_mac = Validate.intArg("min-mac", argsMap, false, DEF_MIN_MAC, 0, IMAX);
@@ -135,12 +141,15 @@ public final class AdmixPar {
         model = Validate.getFile(Validate.stringArg("model", argsMap, false,
                 null, null));
         em = Validate.booleanArg("em", argsMap, false, DEF_EM);
+        update_p = Validate.booleanArg("update-p", argsMap, false, DEF_UPDATE_P);
         gt_samples = Validate.stringArg("gt-samples", argsMap, false, null, null);
         gtSamplesFile = AdmixPar.gtSamplesFile(gt_samples);
         gt_ancestries = Validate.getFile(
                 Validate.stringArg("gt-ancestries", argsMap, false, null, null));
         excludemarkers = Validate.getFile(
                 Validate.stringArg("excludemarkers", argsMap, false, null, null));
+        panel_probs = Validate.booleanArg("panel-probs", argsMap, false, DEF_PANEL_PROBS);
+        panel_cm = Validate.floatArg("panel-cm", argsMap, false, DEF_PANEL_CM, FMIN, FMAX);
         nthreads = Validate.intArg("nthreads", argsMap, false, DEF_THREADS, 1, IMAX);
         seed = Validate.longArg("seed", argsMap, false, DEF_SEED, LMIN, LMAX);
 
@@ -153,9 +162,11 @@ public final class AdmixPar {
         ibs_recycle = Validate.floatArg("ibs-recycle", argsMap, false, DEF_IBS_RECYCLE, FMIN, FMAX);
         em_its = Validate.intArg("em-its", argsMap, false, DEF_EM_ITS, 0, IMAX);
         em_haps = Validate.intArg("em-haps", argsMap, false, DEF_EM_HAPS, 1, IMAX);
-        em_anc_prob = Validate.floatArg("em-anc-prob", argsMap, false, DEF_EM_ANC_PROB, 0.0f, 1.0f);
         delta_mu = Validate.floatArg("delta-mu", argsMap, false, DEF_DELTA_MU, 0.0f, 1.0f);
-        min_mu = Validate.floatArg("min-mu", argsMap, false, DEF_MIN_MU, 0.0f, 1.0f);
+        delta_p = Validate.floatArg("delta-p", argsMap, false, DEF_DELTA_P, 0.0f, 1.0f);
+        panel_markers = Validate.intArg("panel-markers", argsMap, false, DEF_PANEL_MARKERS, 2, IMAX);
+        panel_haps = Validate.intArg("panel-haps", argsMap, false, DEF_PANEL_HAPS, 1, IMAX);
+        panel_ne = Validate.intArg("panel-ne", argsMap, false, DEF_PANEL_NE, 1, IMAX);
         debug = Validate.booleanArg("debug", argsMap, false, DEF_DEBUG);
         Validate.confirmEmptyMap(argsMap);
     }
@@ -180,6 +191,19 @@ public final class AdmixPar {
     }
 
     /**
+     * Returns a string representation of the flare command and version.  The
+     * exact details of the representation are unspecified and subject to change.
+     * @return a string representation of the flare command and version
+     */
+    public static String flareCommand() {
+        String commandLine = ProcessHandle.current().info().commandLine().orElse("");
+        StringBuilder sb = new StringBuilder(commandLine);
+        sb.append("  # ");
+        sb.append(AdmixMain.VERSION);
+        return sb.toString();
+    }
+
+    /**
      * Returns a string describing the command line arguments.
      * The format of the returned string is unspecified and subject to change.
      * @return a string describing the command line arguments.
@@ -196,17 +220,19 @@ public final class AdmixPar {
                 + "  out=<output file prefix>                              (required)" + nl + nl
 
                 + "Optional Parameters:" + nl
-//                + "  anc-panel=<file with ancestry to panels map>         (optional)" + nl
                 + "  array=<genotypes are from a SNP array: true/false>    (default: " + DEF_ARRAY + ")" + nl
                 + "  min-maf=<minimum MAF in reference VCF file>           (default: " + DEF_MIN_MAF + ")" + nl
                 + "  min-mac=<minimum MAC in reference VCF file>           (default: " + DEF_MIN_MAC + ")" + nl
-                + "  probs=<report ancestry probs: true/false>             (default: " + DEF_PROBS + nl
+                + "  probs=<report ancestry probs: true/false>             (default: " + DEF_PROBS + ")" + nl
                 + "  gen=<number of generations since admixture>           (default: " + DEF_GEN + ")" + nl
                 + "  model=<file with model parameters>                    (optional)" + nl
                 + "  em=<estimate model parameters using EM: true/false>   (default: " + DEF_EM + ")" + nl
+                + "  update-p=<estimate p and rho using EM: true/false>    (default: " + DEF_UPDATE_P + ")" + nl
                 + "  gt-samples=<file with sample IDs to analyze>          (optional)" + nl
                 + "  gt-ancestries=<file with sample ancestry proportions> (optional)" + nl
                 + "  excludemarkers=<file with markers to exclude>         (optional)" + nl
+                + "  panel-probs=<estimate panel probs: true/false>        (default: " + DEF_PANEL_PROBS + ")" + nl
+                + "  panel-cm=<window size if panel-probs=true>            (default: " + DEF_PANEL_CM + ")" + nl
                 + "  nthreads=<number of computational threads>            (default: all CPU cores)" + nl
                 + "  seed=<seed for random number generations>             (default: " + DEF_SEED + ")" + nl;
     }
@@ -254,15 +280,6 @@ public final class AdmixPar {
     }
 
     // Optional parameters
-
-    /**
-     * Returns the anc-panel file or {@code null} if no anc-panel parameter
-     * was specified.
-     * @return the anc-panel file
-     */
-    public File anc_panel() {
-        return anc_panel;
-    }
 
     /**
      * Returns the array parameter.
@@ -322,19 +339,11 @@ public final class AdmixPar {
     }
 
     /**
-     * Returns the nthreads parameter.
-     * @return the nthreads parameter
+     * Returns the update-p parameter.
+     * @return the update-p parameter
      */
-    public int nthreads() {
-        return nthreads;
-    }
-
-    /**
-     * Returns the seed parameter.
-     * @return the seed parameter
-     */
-    public long seed() {
-        return seed;
+    public boolean update_p() {
+        return update_p;
     }
 
     /**
@@ -379,6 +388,38 @@ public final class AdmixPar {
      */
     public File excludemarkers() {
         return excludemarkers;
+    }
+
+    /**
+     * Returns the panel-probs parameter
+     * @return the panel-probs parameter
+     */
+    public boolean panel_probs() {
+        return panel_probs;
+    }
+
+    /**
+     * Returns the panel-cm parameter.
+     * @return the panel-cm parameter
+     */
+    public float panel_cm() {
+        return panel_cm;
+    }
+
+    /**
+     * Returns the nthreads parameter.
+     * @return the nthreads parameter
+     */
+    public int nthreads() {
+        return nthreads;
+    }
+
+    /**
+     * Returns the seed parameter.
+     * @return the seed parameter
+     */
+    public long seed() {
+        return seed;
     }
 
     // Undocumented parameters
@@ -448,14 +489,6 @@ public final class AdmixPar {
     }
 
     /**
-     * Returns the em-anc-prob parameter.
-     * @return the em-anc-prob parameter
-     */
-    public float em_anc_prob() {
-        return em_anc_prob;
-    }
-
-    /**
      * Return the delta-mu parameter
      * @return the delta-mu parameter
      */
@@ -464,11 +497,35 @@ public final class AdmixPar {
     }
 
     /**
-     * Return the min-mu parameter
-     * @return the min-mu parameter
+     * Return the delta-p parameter
+     * @return the delta-p parameter
      */
-    public float min_mu() {
-        return min_mu;
+    public float delta_p() {
+        return delta_p;
+    }
+
+    /**
+     * Returns the panel-markers parameter.
+     * @return the panel-markers parameter
+     */
+    public int panel_markers() {
+        return panel_markers;
+    }
+
+    /**
+     * Return the panel-haps parameter
+     * @return the panel-haps parameter
+     */
+    public int panel_haps() {
+        return panel_haps;
+    }
+
+    /**
+     * Return the panel-ne parameter
+     * @return the panel-ne parameter
+     */
+    public int panel_ne() {
+        return panel_ne;
     }
 
     /**

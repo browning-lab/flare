@@ -19,13 +19,13 @@ package vcf;
 
 import beagleutil.ChromIds;
 import blbutil.FileIt;
-import blbutil.Filter;
 import blbutil.InputIt;
 import blbutil.StringUtil;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * <p>Class {@code PlinkGenMap} represents a genetic map derived
@@ -113,7 +113,7 @@ public final class PlinkGenMap implements GeneticMap {
      * have the same genetic map position
      */
     public static PlinkGenMap fromPlinkMapFile(File mapFile) {
-        Filter<String> chromFilter = Filter.acceptAllFilter();
+        Predicate<String> chromFilter = FilterUtil.acceptAllPredicate();
         return new PlinkGenMap(divideByChrom(mapFile, chromFilter));
     }
 
@@ -149,7 +149,7 @@ public final class PlinkGenMap implements GeneticMap {
      */
     public static PlinkGenMap fromPlinkMapFile(File mapFile, String chrom) {
         chrom = chrom.trim();
-        Filter<String> chromFilter = singletonFilter(chrom);
+        Predicate<String> chromFilter = singletonFilter(chrom);
         return new PlinkGenMap(divideByChrom(mapFile, chromFilter));
     }
 
@@ -162,7 +162,7 @@ public final class PlinkGenMap implements GeneticMap {
      * to the specified object
      * @throws NullPointerException if {@code singleton == null}
      */
-   private static <E> Filter<E> singletonFilter(final E singleton) {
+   private static <E> Predicate<E> singletonFilter(final E singleton) {
         if (singleton==null) {
             throw new NullPointerException("singleton==null");
         }
@@ -175,7 +175,7 @@ public final class PlinkGenMap implements GeneticMap {
     }
 
     private static List<List<String>> divideByChrom(File mapFile,
-            Filter<String> chromFilter) {
+            Predicate<String> chromFilter) {
         int initialMapSize = 200;
         List<List<String>> chromList = new ArrayList<>(25);
         try (FileIt<String> it = InputIt.fromGzipFile(mapFile)) {
@@ -188,7 +188,7 @@ public final class PlinkGenMap implements GeneticMap {
                         throw new IllegalArgumentException(s);
                     } else {
                         String chrom = fields[0];
-                        if (chromFilter.accept(chrom)) {
+                        if (chromFilter.test(chrom)) {
                             int chromIndex = ChromIds.instance().getIndex(fields[0]);
                             while (chromIndex >= chromList.size()) {
                                 chromList.add(new ArrayList<>(initialMapSize));

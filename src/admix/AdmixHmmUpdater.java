@@ -41,18 +41,18 @@ public class AdmixHmmUpdater {
      * Constructs a new {@code AdmixHmmUpdater} instance from the specified
      * data.
      * @param data the input data for local ancestry inference on a chromosome
-     * @throws NullPointerException if {@code data == null}
+     * @throws NullPointerException if {@code (data == null)}
      */
     public AdmixHmmUpdater(AdmixData data) {
         AdmixChromData chromData = data.chromData();
-        FixedParams fixedParams = data.params().fixedParams();
+        SampleData sampleData = data.params().sampleData();
         this.params = data.params();
         this.hmmProbs = data.hmmProbs();
         this.nMarkers = chromData.targRefGT().nMarkers();
-        this.nAnc = fixedParams.nAnc();
+        this.nAnc = sampleData.nAnc();
 
         this.bwdSumI = new double[nAnc];
-        this.jShift = new double[fixedParams.nRefPanels()];
+        this.jShift = new double[sampleData.nRefPanels()];
         this.q = ParamUtils.q(params);
         this.pObserved = ParamUtils.pObserved(params);
     }
@@ -62,7 +62,7 @@ public class AdmixHmmUpdater {
      * @return the number of target samples
      */
     public int nTargSamples() {
-        return params.fixedParams().targSamples().size() << 1;
+        return params.sampleData().targSamples().size() << 1;
     }
 
     /**

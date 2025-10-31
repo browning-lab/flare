@@ -47,50 +47,61 @@ public final class ParamEstimator {
 
     /**
      * Returns estimated local ancestry model parameters.
-     * @param fixedParams the fixed parameters for a local ancestry inference
-     * analysis
      * @param ibsHaps IBS segments
      * @param log object to which log output will be written
      * @return estimated local ancestry model parameters
      * @throws NullPointerException if
-     * {@code (fixedParams == null) || (ibsHaps == null) || (log == null)}
+     * {@code ((ibsHaps == null) || (log == null))}
      */
-    public static ParamsInterface getParams(FixedParams fixedParams,
-            IbsHaps ibsHaps, PrintWriter log) {
-        ParamsInterface initParams = initParams(ibsHaps);
-        ParamsInterface params = initParams;
-        if (fixedParams.par().em()) {
-            AdmixPar par = fixedParams.par();
-            double minMu = par.min_mu();
-            double deltaMu = par.delta_mu();
+    public static ParamsInterface getParams(IbsHaps ibsHaps, PrintWriter log) {
+        SampleData sampleData = ibsHaps.chromData().sampleData();
+        ParamsInterface params = initParams(ibsHaps);
+        AdmixPar par = sampleData.par();
+        if (par.em()) {
             Random rand = new Random(par.seed());
-            boolean muHasConverged = false;
-            double[] prevMu = new double[initParams.fixedParams().nAnc()];
-            for (int j=0, n=par.em_its(); j<=n && muHasConverged==false; ++j) {
+            double[] prevMu = params.studyMu();
+            double[][] prevP = params.p();
+            boolean finished = false;
+            for (int j=0, n=par.em_its(); j<=n && finished==false; ++j) {
                 // (n+1) iterations because j=0 calculates init parameter score
                 WrappedIntArray selectedTargHaps = selectedTargHaps(ibsHaps.chromData(), rand);
-                ParamEstimateData ape = estimateMuT(ibsHaps, params, selectedTargHaps);
-                if (fixedParams.par().debug()) {
-                    writeDiagnosticOutput(j, params);
+                ParamEstimateData paramData = estimateParams(ibsHaps, params, selectedTargHaps);
+                double score = paramData.meanMaxAncProb();
+                if (sampleData.par().debug()) {
+                    writeDiagnosticOutput(j, params, score);
                 }
-                params = ape.estimatedParams(initParams);
+                params = new EstimatedParams(paramData);
                 double[] nextMu = params.studyMu();
-                muHasConverged = muHasConverged(prevMu, nextMu, minMu, deltaMu);
+                double[][] nextP = params.p();
+                finished = parametersHaveConverged(par, prevMu, nextMu, prevP, nextP);
                 prevMu = nextMu;
-                if (fixedParams.par().debug() && muHasConverged) {
-                    writeDiagnosticOutput((j+1), params);
+                prevP = nextP;
+                if (sampleData.par().debug() && finished) {
+                    writeDiagnosticOutput((j+1), params, Double.NaN);
                 }
             }
         }
         return params;
     }
 
-    private static boolean muHasConverged(double[] prevMu, double[] nextMu,
-            double minMu, double deltaMu) {
-        for (int j=0; j<prevMu.length; ++j) {
-            if (prevMu[j]>=minMu || nextMu[j]>=minMu) {
-                if (Math.abs(prevMu[j] - nextMu[j]) > prevMu[j]*deltaMu) {
-                    return false;
+    private static boolean parametersHaveConverged(AdmixPar par,
+            double[] prevMu, double[] nextMu,
+            double[][] prevP, double[][] nextP) {
+        double deltaMu = par.delta_mu();
+        for (int i=0; i<prevMu.length; ++i) {
+            if (Math.abs(prevMu[i] - nextMu[i]) > deltaMu) {
+                return false;
+            }
+        }
+        if (par.update_p()) {
+            double deltaP = par.delta_p();
+            for (int i=0; i<prevP.length; ++i) {
+                double[] prev = prevP[i];
+                double[] next = nextP[i];
+                for (int j=0; j<prev.length; ++j) {
+                    if (Math.abs(prev[j] - next[j]) > deltaP) {
+                        return false;
+                    }
                 }
             }
         }
@@ -98,48 +109,30 @@ public final class ParamEstimator {
     }
 
     private static ParamsInterface initParams(IbsHaps ibsHaps){
-        SelectedHaps selectedHaps = ibsHaps.selectedHaps();
-        FixedParams fixedParams = selectedHaps.fixedParams();
-        if (fixedParams.par().model()!=null) {
-            return new ModelFileParams(fixedParams);
+        ObservedHaps observedHaps = ibsHaps.observedHaps();
+        SampleData sampleData = observedHaps.sampleData();
+        if (sampleData.par().model()!=null) {
+            return new ModelFileParams(sampleData);
         }
         else {
-            if (selectedHaps.includeRefHaps()) {
-                ParamsInterface defaultParams = new DefaultParams(fixedParams);
-                int nAnc = fixedParams.nAnc();
-                ParamEstimateData[] estimatedParams = new ParamEstimateData[nAnc];
-                for (int i=0; i<nAnc; ++i) {
-                    AncSpecificParams initParams = new AncSpecificParams(fixedParams, i);
-                    estimatedParams[i] = estimateRhoP(ibsHaps, initParams,
-                            selectedHaps.panelToSelectedHapsIndices(i));
-                }
-                return new PartiallyUpdatedParams(estimatedParams, defaultParams);
+            assert observedHaps.includeRefHaps()==true;
+            int nAnc = sampleData.nAnc();
+            ParamEstimateData[] paramData = new ParamEstimateData[nAnc];
+            for (int i=0; i<nAnc; ++i) {
+                AncSpecificParams ancParams = new AncSpecificParams(sampleData, i);
+                paramData[i] = estimateRho(ibsHaps, ancParams,
+                        observedHaps.panelToObservedHapsIndices(i));
             }
-            else {
-                return new DefaultParams(fixedParams);
-            }
+            return new PartiallyUpdatedParams(sampleData, paramData);
         }
     }
 
-    private static void writeDiagnosticOutput(int it, ParamsInterface params) {
-        File diagnosticFile = new File(params.fixedParams().par().out() + ".diag.model");
-        if (it==0) {
-            diagnosticFile.delete();
-        }
-        try (PrintWriter out = FileUtil.printWriter(diagnosticFile, true)) {
-            out.println(Const.nl + "Iteration: " + it);
-            out.println("=============");
-            out.println();
-            out.println(params.toString());
-        }
-    }
-
-    private static ParamEstimateData estimateRhoP(IbsHaps ibsHaps,
+    private static ParamEstimateData estimateRho(IbsHaps ibsHaps,
             ParamsInterface oldParams, WrappedIntArray selectedHapIndices) {
-        ParamEstimateData ape = new ParamEstimateData(oldParams);
+        ParamEstimateData paramData = new ParamEstimateData(oldParams);
         AdmixData data = new AdmixData(ibsHaps.chromData(), oldParams);
         AtomicInteger index = new AtomicInteger(0);
-        int nThreads = oldParams.fixedParams().par().nthreads();
+        int nThreads = oldParams.sampleData().par().nthreads();
         ExecutorService es = Executors.newFixedThreadPool(nThreads);
         for (int j=0; j<nThreads; ++j) {
             es.submit(() -> {
@@ -148,10 +141,10 @@ public final class ParamEstimator {
                     AdmixHmm hmm = new AdmixHmm(data, ibsHaps);
                     int i = index.getAndIncrement();
                     while (i<nHaps) {
-                        hmm.runFwdBwdRhoP(selectedHapIndices.get(i));
+                        hmm.runFwdBwdRho(selectedHapIndices.get(i));
                         i = index.getAndIncrement();
                     }
-                    hmm.updateRhoP(ape);
+                    hmm.updateRho(paramData);
                 }
                 catch (Throwable t) {
                     Utilities.exit(t);
@@ -159,15 +152,15 @@ public final class ParamEstimator {
             } );
         }
         MultiThreadUtils.shutdownExecService(es);
-        return ape;
+        return paramData;
     }
 
-    private static ParamEstimateData estimateMuT(IbsHaps ibsHaps,
+    private static ParamEstimateData estimateParams(IbsHaps ibsHaps,
             ParamsInterface oldParams, WrappedIntArray selectedTargHaps) {
-        ParamEstimateData ape = new ParamEstimateData(oldParams);
+        ParamEstimateData paramData = new ParamEstimateData(oldParams);
         AdmixData data = new AdmixData(ibsHaps.chromData(), oldParams);
         AtomicInteger index = new AtomicInteger(0);
-        int nThreads = oldParams.fixedParams().par().nthreads();
+        int nThreads = oldParams.sampleData().par().nthreads();
         ExecutorService es = Executors.newFixedThreadPool(nThreads);
         for (int j=0; j<nThreads; ++j) {
             es.submit(() -> {
@@ -176,10 +169,10 @@ public final class ParamEstimator {
                     AdmixHmm hmm = new AdmixHmm(data, ibsHaps);
                     int i = index.getAndIncrement();
                     while (i<nHaps) {
-                        hmm.runFwdBwdMuT(selectedTargHaps.get(i));
+                        hmm.runFwdBwdEstimateParams(selectedTargHaps.get(i));
                         i = index.getAndIncrement();
                     }
-                    hmm.updateMuT(ape);
+                    hmm.updateParams(paramData);
                 }
                 catch (Throwable t) {
                     Utilities.exit(t);
@@ -187,7 +180,7 @@ public final class ParamEstimator {
             } );
         }
         MultiThreadUtils.shutdownExecService(es);
-        return ape;
+        return paramData;
     }
 
     private static WrappedIntArray selectedTargHaps(AdmixChromData chromData,
@@ -205,6 +198,27 @@ public final class ParamEstimator {
             int[] hapsToAnalyze = Arrays.copyOf(ia, maxHaps);
             Arrays.sort(hapsToAnalyze);
             return new WrappedIntArray(hapsToAnalyze);
+        }
+    }
+
+    private static void writeDiagnosticOutput(int it, ParamsInterface params, 
+            double meanMaxAncProb) {
+        File diagnosticFile = new File(params.sampleData().par().out() + ".diag.model");
+        if (it==0) {
+            diagnosticFile.delete();
+        }
+        try (PrintWriter out = FileUtil.printWriter(diagnosticFile, true)) {
+            if (Double.isFinite(meanMaxAncProb)) {
+                out.println(Const.nl + "Before iteration: " + it);
+                out.println("==========================");
+                out.println("meanMaxAncProb: " + (float) meanMaxAncProb);
+            }
+            else {
+                out.println(Const.nl + "Iteration: " + it);
+                out.println("=============");
+            }
+            out.println();
+            out.println(params.toString());
         }
     }
 }

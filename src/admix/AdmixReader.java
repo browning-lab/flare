@@ -19,14 +19,11 @@ package admix;
 
 import blbutil.Const;
 import blbutil.FileIt;
-import blbutil.Filter;
-import blbutil.FilterUtils;
 import blbutil.InputIt;
-import blbutil.SampleFileIt;
 import blbutil.Utilities;
+import blbutil.VcfFileIt;
 import bref.Bref3It;
 import bref.SeqCoder3;
-import ints.IndexArray;
 import ints.WrappedIntArray;
 import java.io.Closeable;
 import java.io.File;
@@ -35,6 +32,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Predicate;
 import vcf.FilterUtil;
 import vcf.GTRec;
 import vcf.IntArrayRefGTRec;
@@ -43,6 +41,7 @@ import vcf.RefGT;
 import vcf. RefGTRec;
 import vcf.RefIt;
 import vcf.Samples;
+import vcf.VcfHeader;
 
 /**
  * <p>Class {@code AdmixReader} reads and merges reference and target
@@ -54,9 +53,9 @@ import vcf.Samples;
  */
 public final class AdmixReader implements Closeable {
 
-    private final Filter<String> gtSampleFilter;
-    private final SampleFileIt<RefGTRec> targIt;
-    private final SampleFileIt<RefGTRec> refIt;
+    private final Predicate<String> gtSampleFilter;
+    private final VcfFileIt<RefGTRec> targIt;
+    private final VcfFileIt<RefGTRec> refIt;
     private final Samples targSamples;
     private final Samples refSamples;
     private final Samples targRefSamples;
@@ -81,7 +80,7 @@ public final class AdmixReader implements Closeable {
      */
     public static AdmixReader instance(AdmixPar par) {
         AdmixReader reader = new AdmixReader(par);
-        boolean success = reader.initRecs();
+        boolean success = reader.initializeNextRecs();
         if (success==false) {
             String nl = blbutil.Const.nl;
             String s = "Error: Reference and target VCF files have no markers in common."
@@ -94,14 +93,15 @@ public final class AdmixReader implements Closeable {
     }
 
     private AdmixReader(AdmixPar par) {
-        Filter<String> refSampFilt = FilterUtils.includeFilter(
+        Predicate<String> refSampFilt = FilterUtil.includePredicate(
                 AdmixUtils.readMap(par.ref_panel()).keySet()
         );
         boolean includeFilter = par.gt_samples()!=null
                 && par.gt_samples().startsWith("^")==false;
-        Filter<Marker> markerFilter = FilterUtil.markerFilter(par.excludemarkers());
-        this.gtSampleFilter = FilterUtil.sampleFilter(par.gtSamplesFile(),
-                includeFilter);
+        this.gtSampleFilter = includeFilter
+                ? FilterUtil.includePredicate(par.gtSamplesFile())
+                : FilterUtil.excludePredicate(par.gtSamplesFile());
+        Predicate<Marker> markerFilter = FilterUtil.markerFilter(par.excludemarkers());
         this.targIt = refIt(par.gt(), gtSampleFilter, markerFilter, par.nthreads());
         this.refIt = refIt(par.ref(), refSampFilt, markerFilter, par.nthreads());
         this.targSamples = targIt.samples();
@@ -116,16 +116,16 @@ public final class AdmixReader implements Closeable {
         this.maxSeqCodingMajorCnt = maxSeqCodingMajorCnt(targRefSamples);
     }
 
-    private static SampleFileIt<RefGTRec> refIt(File refFile,
-            Filter<String> sampleFilter, Filter<Marker> markerFilter,
+    private static VcfFileIt<RefGTRec> refIt(File refFile,
+            Predicate<String> sampleFilter, Predicate<Marker> markerFilter,
             int nThreads) {
         String filename = refFile.toString();
-        SampleFileIt<RefGTRec> refIt;
+        VcfFileIt<RefGTRec> refIt;
         if (filename.endsWith(".bref3")) {
             refIt = new Bref3It(refFile, sampleFilter, markerFilter);
         }
         else {
-            int nBufferedBlocks = nThreads << 3;
+            int nBufferedBlocks = nThreads << 2;
             FileIt<String> it = InputIt.fromBGZipFile(refFile, nBufferedBlocks);
             refIt = RefIt.create(it, sampleFilter, markerFilter);
         }
@@ -135,19 +135,19 @@ public final class AdmixReader implements Closeable {
     private static Samples targRefSamples(Samples refSamples, Samples targSamples) {
         int nTargSamples = targSamples.size();
         int nAllSamples = nTargSamples + refSamples.size();
-        int[] idIndex = new int[nAllSamples];
+        String[] ids = new String[nAllSamples];
         boolean[] isDiploid = new boolean[nAllSamples];
         for (int j=0; j<nTargSamples; ++j) {
-            idIndex[j] = targSamples.idIndex(j);
+            ids[j] = targSamples.id(j);
             isDiploid[j] = targSamples.isDiploid(j);
         }
         for (int j=nTargSamples; j<nAllSamples; ++j) {
             int targIndex = j - nTargSamples;
-            idIndex[j] = refSamples.idIndex(targIndex);
+            ids[j] = refSamples.id(targIndex);
             isDiploid[j] = refSamples.isDiploid(targIndex);
         }
         checkForDuplicates(refSamples, targSamples);
-        return new Samples(idIndex, isDiploid);
+        return new Samples(ids, isDiploid);
     }
 
     private static void checkForDuplicates(Samples refSamples,
@@ -182,7 +182,7 @@ public final class AdmixReader implements Closeable {
         return (int) Math.floor(nHaps*SeqCoder3.COMPRESS_FREQ_THRESHOLD);
     }
 
-    private boolean initRecs() {
+    private boolean initializeNextRecs() {
         if (refIt.hasNext()) {
             nextRefRec = refIt.next();
         }
@@ -254,8 +254,24 @@ public final class AdmixReader implements Closeable {
      * Returns the sample filter.
      * @return the sample filter
      */
-    public Filter<String> gtSampleFilter() {
+    public Predicate<String> gtSampleFilter() {
         return gtSampleFilter;
+    }
+
+    /**
+     * Returns the target VCF meta-information lines and header line.
+     * @return the target VCF meta-information lines and header line
+     */
+    public VcfHeader targVcfHeader() {
+        return targIt.vcfHeader();
+    }
+
+    /**
+     * Returns the reference VCF meta-information lines and header line.
+     * @return the reference VCF meta-information lines and header line
+     */
+    public VcfHeader refVcfHeader() {
+        return refIt.vcfHeader();
     }
 
     /**
@@ -350,9 +366,8 @@ public final class AdmixReader implements Closeable {
         for (int h=0; h<nRefHaps; ++h) {
             alleles[nTargHaps+h] = nextRefRec.get(h);
         }
-        Marker mkr = nextRefRec.marker();
-        IndexArray ia = new IndexArray(new WrappedIntArray(alleles), mkr.nAlleles());
-        return new IntArrayRefGTRec(mkr, targRefSamples, ia);
+        return new IntArrayRefGTRec(nextRefRec.marker(), targRefSamples,
+                new WrappedIntArray(alleles));
     }
 
     private void addToBuffer(RefGTRec rec) {
@@ -361,7 +376,7 @@ public final class AdmixReader implements Closeable {
         }
         rec = RefGTRec.alleleRefGTRec(rec);
         int[] alCnts = rec.alleleCounts();
-        if (alCnts[rec.majorAllele()]>maxSeqCodingMajorCnt
+        if (alCnts[rec.nullRow()]>maxSeqCodingMajorCnt
                || alCnts.length>maxSeqCodedAlleles) {
             lowFreqBuffer.add(rec);
         }

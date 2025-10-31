@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 Brian L. Browning
+ * Copyright 2021-2023 Brian L. Browning
  *
  * This file is part of the flare program.
  *
@@ -15,19 +15,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package vcf;
+package blbutil;
+
+import vcf.GTRec;
+import vcf.VcfHeader;
 
 /**
- * Interface {@code MarkerContainer} represents an object that stores
- * a unique {@code vcf.Marker} instance.
+ * <p>An iterator for records in a VCF file.  Each record contains
+ * data for the same set of samples.
+ *</p>
+ * Instances of class {@code VcfFileIt} are not thread-safe.
+ *
+ * @param <E> the type of the elements returned by this iterator's
+ * {@code next()} method.
  *
  * @author Brian L. Browning {@code <browning@uw.edu>}
  */
-public interface MarkerContainer {
+public interface VcfFileIt<E extends GTRec> extends SampleFileIt<E> {
 
     /**
-     * Returns the marker.
-     * @return the marker
+     * Returns the VCF meta-information lines and header line.
+     * @return the VCF meta-information lines and header line
      */
-    Marker marker();
+    VcfHeader vcfHeader();
 }

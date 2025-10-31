@@ -19,7 +19,6 @@ package bref;
 
 import beagleutil.ChromIds;
 import blbutil.Const;
-import blbutil.Filter;
 import blbutil.Utilities;
 import ints.CharArray;
 import ints.IntArray;
@@ -31,11 +30,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Predicate;
+import vcf.FilterUtil;
 import vcf.Marker;
 import vcf.RefGTRec;
 import vcf.Samples;
-import vcf.HapRefGTRec;
-import vcf.VcfFieldFilter;
+import vcf.MapRefGTRec;
 
 /**
  * <p>Class {@code Bref3Reader} contains methods for reading a bref3
@@ -54,7 +54,7 @@ public final class Bref3Reader {
     static final String READ_ERR = "Error reading file";
     private static final String[][] SNV_PERMS = snvPerms();
 
-    private final Filter<Marker> markerFilter;
+    private final Predicate<Marker> markerFilter;
     private final String program;
     private final Bref3Header brefHeader;
     private final int[] includedHapIndices;
@@ -75,7 +75,7 @@ public final class Bref3Reader {
      * @throws NullPointerException if {@code (dataIn == null)}
      */
     public Bref3Reader(File source, DataInput dataIn) {
-        this(source, dataIn, Filter.acceptAllFilter(), Filter.acceptAllFilter());
+        this(source, dataIn, FilterUtil.acceptAllPredicate(), FilterUtil.acceptAllPredicate());
     }
 
     /**
@@ -92,7 +92,7 @@ public final class Bref3Reader {
      * {@code (dataIn == null) || (sampleFilter == null) || (markerFilter == null)}
      */
     public Bref3Reader(File source, DataInput dataIn,
-            Filter<String> sampleFilter, Filter<Marker> markerFilter) {
+            Predicate<String> sampleFilter, Predicate<Marker> markerFilter) {
         if (markerFilter==null) {
             throw new NullPointerException("markerFilter==null");
         }
@@ -163,13 +163,13 @@ public final class Bref3Reader {
             if (flag==0) {
                 RefGTRec rec = readHapRecord(dataIn, marker, samples,
                         hapToSeq, nSeq);
-                if (markerFilter.accept(marker)) {
+                if (markerFilter.test(marker)) {
                     buffer.add(rec);
                 }
             }
             else if (flag==1) {
                 RefGTRec rec = readAlleleRecord(dataIn, marker, samples);
-                if (markerFilter.accept(marker)) {
+                if (markerFilter.test(marker)) {
                     buffer.add(rec);
                 }
             }
@@ -199,7 +199,7 @@ public final class Bref3Reader {
 //            throw new IllegalArgumentException("inconsistent data");
 //        }
 
-        return new HapRefGTRec(marker, samples, hapToSeq, seqToAllele);
+        return new MapRefGTRec(marker, samples, hapToSeq, seqToAllele);
     }
 
     private static Marker readMarker(DataInput dataIn, int chromIndex)
@@ -213,9 +213,7 @@ public final class Bref3Reader {
             int end = dataIn.readInt();
             String vcfRecPrefix = vcfRecPrefix(chromIndex, pos, id,
                     refAndAltFields, end);
-            boolean storeId = true;
-            VcfFieldFilter filter = new VcfFieldFilter(storeId, false, false, false);
-            return new Marker(vcfRecPrefix, filter);
+            return Marker.fromVcfRecord(vcfRecPrefix);
         }
         else {
             int nAlleles = 1 + (alleleCode & 0b11);
@@ -225,9 +223,7 @@ public final class Bref3Reader {
             int end = -1;
             String vcfRecPrefix = vcfRecPrefix(chromIndex, pos, id,
                     refAndAltFields, end);
-            boolean storeId = true;
-            VcfFieldFilter filter = new VcfFieldFilter(storeId, false, false, false);
-            return new Marker(vcfRecPrefix, filter);
+            return Marker.fromVcfRecord(vcfRecPrefix);
         }
     }
 

@@ -18,6 +18,9 @@
 package beagleutil;
 
 import blbutil.Const;
+import blbutil.StringUtil;
+import java.util.ArrayList;
+import java.util.function.Predicate;
 import vcf.Marker;
 
 /**
@@ -29,7 +32,7 @@ import vcf.Marker;
  *
  * @author Brian L. Browning {@code <browning@uw.edu>}
 */
-public final class ChromInterval implements IntInterval,
+public final class ChromInterval implements IntInterval, Predicate<Marker>,
         Comparable<ChromInterval> {
 
     private final int chromIndex;
@@ -82,6 +85,45 @@ public final class ChromInterval implements IntInterval,
     }
 
     /**
+     * Parses the specified comma-delimited list of chromosome intervals and
+     * returns the corresponding array of {@code ChromInterval[]} objects.
+     * A blank comma-delimited substring {@code str} will be ignored if
+     * {@code (str.trim().isEmpty() == true)}.
+     * @param regions a comma-delimited list chromosome intervals
+     * @return an array of {@code ChromInterval[]} objects
+     * @throws IllegalArgumentException if any non-blank,
+     * comma-delimited substring cannot be parsed by the
+     * {@code ChromInterval.parse()} method.
+     */
+    public static ChromInterval[] parseRegions(String regions) {
+        String[] substrings = StringUtil.getFields(regions, ',');
+        ArrayList<ChromInterval> intervals = new ArrayList<>(substrings.length);
+        for (int j=0; j<substrings.length; ++j) {
+            String region = substrings[j].trim();
+            if (region.isEmpty()==false) {
+                ChromInterval interval = parse(substrings[j]);
+                if (interval==null) {
+                    invalidRegionError(regions, region);
+                }
+                else {
+                    intervals.add(interval);
+                }
+            }
+        }
+        return intervals.toArray(new ChromInterval[0]);
+    }
+
+    private static void invalidRegionError(String regions, String region) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Error: invalid chromosome interval \"");
+        sb.append(region);
+        sb.append("\" in comma-separated list of chromosome intervals \"");
+        sb.append(regions);
+        sb.append("\"");
+        throw new IllegalArgumentException(sb.toString());
+    }
+
+    /**
      * <p>Returns a {@code ChromInterval} instance corresponding to the
      * specified string, or returns {@code null} if the specified
      * string does not represent a valid chromosome interval or if the
@@ -93,6 +135,7 @@ public final class ChromInterval implements IntInterval,
      * [chrom]:[start]-[end]
      * [chrom]
      * [chrom]:
+     * [chrom]:[start]
      * [chrom]:[start]-
      * [chrom]:-[end]
      * </pre>
@@ -132,9 +175,12 @@ public final class ChromInterval implements IntInterval,
         else if (chrDelim == length-1) {
             return new ChromInterval(str.substring(0, length-1), start, end);
         }
+        else if ((posDelim == -1) && isValidPos(str, chrDelim+1, length)) {
+            start = Integer.parseInt(str.substring(chrDelim+1, length));
+            end = start;
+        }
         else {
-            if ( (posDelim == -1) || (posDelim <= chrDelim)
-                        || (chrDelim == length-2)
+            if ((posDelim <= chrDelim)
                         || (isValidPos(str, chrDelim+1, posDelim)==false)
                         || (isValidPos(str, posDelim+1, length)==false) ) {
                 return null;
@@ -153,17 +199,17 @@ public final class ChromInterval implements IntInterval,
     }
 
     /* endIndex is exclusive */
-    private static boolean isValidPos(String s, int startIndex,
+    private static boolean isValidPos(String str, int startIndex,
             int endIndex) {
         if (startIndex==endIndex) {
             return true;
         }
         int length = endIndex - startIndex;
-        if ((length > 1) && s.charAt(startIndex)==0) {
+        if ((length > 1) && str.charAt(startIndex)==0) {
             return false;
         }
         for (int j=startIndex; j<endIndex; ++j) {
-            char c = s.charAt(j);
+            char c = str.charAt(j);
             if (Character.isDigit(c)==false) {
                 return false;
             }
@@ -173,7 +219,7 @@ public final class ChromInterval implements IntInterval,
 
     /**
      * Returns the chromosome index.  The chromosome index is equal to
-     * {@code ChromIds.indexOf(this.chrom())}.
+     * {@code ChromIds.indexOf(this.chromID())}.
      * @return the chromosome index.
      */
     public int chromIndex() {
@@ -184,7 +230,7 @@ public final class ChromInterval implements IntInterval,
      * Returns the chromosome identifier.
      * @return the chromosome identifier.
      */
-    public String chrom() {
+    public String chromID() {
         return ChromIds.instance().id(chromIndex);
     }
 
@@ -317,7 +363,8 @@ public final class ChromInterval implements IntInterval,
      * interval
      * @throws NullPointerException if {@code marker == null}
      */
-    public boolean contains(Marker marker) {
+    @Override
+    public boolean test(Marker marker) {
         int pos = marker.pos();
         return marker.chromIndex()==chromIndex && start <= pos && pos <= end;
     }
@@ -354,6 +401,6 @@ public final class ChromInterval implements IntInterval,
         }
         int start = Math.min(a.start(), b.start());
         int end = Math.max(a.inclEnd(), b.inclEnd());
-        return new ChromInterval(a.chrom(), start, end);
+        return new ChromInterval(a.chromID(), start, end);
     }
 }

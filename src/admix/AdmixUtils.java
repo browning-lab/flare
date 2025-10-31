@@ -19,7 +19,6 @@ package admix;
 
 import blbutil.Const;
 import blbutil.FileIt;
-import blbutil.Filter;
 import blbutil.FloatArray;
 import blbutil.InputIt;
 import blbutil.StringUtil;
@@ -29,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.function.Predicate;
 import java.util.stream.IntStream;
 import vcf.Samples;
 import vcf.VcfHeader;
@@ -380,7 +380,7 @@ public class AdmixUtils {
      * @throws NullPointerException if
      * {@code vcfFile == null || sampFilter == null}}
      */
-    public static String[] readSampleIds(File vcfFile, Filter<String> sampFilter) {
+    public static String[] readSampleIds(File vcfFile, Predicate<String> sampFilter) {
         String headerPrefix = VcfHeader.HEADER_PREFIX + Const.tab;
         try (FileIt<String> it = InputIt.fromGzipFile(vcfFile)) {
             String line = "##";
@@ -393,7 +393,7 @@ public class AdmixUtils {
                 return Arrays.stream(fields)
                         .parallel()
                         .skip(firstSampleField)
-                        .filter(sampFilter::accept)
+                        .filter(sampFilter::test)
                         .toArray(String[]::new);
             }
             else {

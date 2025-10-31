@@ -35,7 +35,7 @@ public final class WrappedIntArray implements IntArray {
     /**
      * Constructs a new {@code WrappedIntArray} instance.
      * @param ia an array of integers
-     * @throws NullPointerException if {@code ia == null}
+     * @throws NullPointerException if {@code (ia == null)}
      */
     public WrappedIntArray(int[] ia) {
         this.ia = ia.clone();
@@ -45,8 +45,7 @@ public final class WrappedIntArray implements IntArray {
      * Constructs an {@code WrappedIntrray} object with the specified
      * values.
      * @param values a stream of integer values
-     * @throws NullPointerException if {@code values == null}
-     * @throws IllegalStateException if the stream has previously been used
+     * @throws NullPointerException if {@code (values == null)}
      */
     public WrappedIntArray(IntStream values) {
         this.ia = values.toArray();
@@ -58,18 +57,12 @@ public final class WrappedIntArray implements IntArray {
      * @param valueSize the exclusive end of the range of non-negative
      * array values
      * @throws IllegalArgumentException if
-     * {@code (ia[j] < 0 || ia[j] > valueSize)} for any index {@code j}
-     * satisfying  {@code (j >= 0 && j < ia.length)}
-     * @throws NullPointerException if {@code ia == null}
+     * {@code ((ia[j] < 0) || (ia[j] > valueSize))} for any index {@code j}
+     * satisfying  {@code ((j >= 0) && (j < ia.length))}
+     * @throws NullPointerException if {@code (ia == null)}
      */
     public WrappedIntArray(int[] ia, int valueSize) {
-        this.ia = new int[ia.length];
-        for (int j=0; j<ia.length; ++j) {
-            if (ia[j]<0 || ia[j]>=valueSize) {
-                throw new IllegalArgumentException(String.valueOf(ia[j]));
-            }
-            this.ia[j] = ia[j];
-        }
+        this(ia, 0, ia.length, valueSize);
     }
 
     /**
@@ -87,14 +80,85 @@ public final class WrappedIntArray implements IntArray {
      * @param valueSize the exclusive end of the range of non-negative
      * array values
      * @throws IllegalArgumentException if
-     * {@code (il[j] < 0 || il[j] > valueSize)} for any index {@code j}
-     * satisfying  {@code (j >= 0 && j < il.length)}
-     * @throws NullPointerException if {@code il == null}
+     * {@code ((il[j] < 0) || (il[j] > valueSize))} for any index {@code j}
+     * satisfying  {@code ((j >= 0) && (j < il.length))}
+     * @throws NullPointerException if {@code (il == null)}
      */
     public WrappedIntArray(IntList il, int valueSize) {
-        this.ia = new int[il.size()];
-        for (int j=0; j<ia.length; ++j) {
-            int value = il.get(j);
+        this(il, 0, il.size(), valueSize);
+    }
+
+    /**
+     * Constructs a new {@code WrappedIntArray} instance from the
+     * specified data.
+     * @param ia an array of integer values
+     * @param from the first element to be included (inclusive)
+     * @param to the last element to be included (exclusive)
+     * @throws IndexOutOfBoundsException if {@code ((from < 0) || (to > ia.length))}
+     * @throws NegativeArraySizeException if {@code (to > from)}
+     * @throws NullPointerException if {@code (ia == null)}
+     */
+    public WrappedIntArray(int[] ia, int from, int to) {
+        this.ia = Arrays.copyOfRange(ia, from, to);
+    }
+
+    /**
+     * Constructs a new {@code WrappedIntArray} instance from the
+     * specified data.
+     * @param il a list of integer values
+     * @param from the first element to be included (inclusive)
+     * @param to the last element to be included (exclusive)
+     * @throws IndexOutOfBoundsException if {@code ((from < 0) || (to > ia.length))}
+     * @throws NegativeArraySizeException if {@code (to > from)}
+     * @throws NullPointerException if {@code (il == null)}
+     */
+    public WrappedIntArray(IntList il, int from, int to) {
+        this.ia = il.copyOfRange(from, to);
+    }
+
+    /**
+     * Constructs a new {@code WrappedIntArray} instance from the specified data.
+     * @param array an array of integers
+     * @param from the first element to be included (inclusive)
+     * @param to the last element to be included (exclusive)
+     * @param valueSize the exclusive end of the range of non-negative
+     * array values
+     * @throws IllegalArgumentException if
+     * {@code ((array[j] < 0) || (array[j] >= valueSize))} for any
+     * index {@code j} satisfying  {@code ((j >= 0) && (j < array.length))}
+     * @throws IndexOutOfBoundsException if {@code ((from < 0) || (to > array.length))}
+     * @throws NegativeArraySizeException if {@code (to > from)}
+     * @throws NullPointerException if {@code (array == null)}
+     */
+    public WrappedIntArray(int[] array, int from, int to, int valueSize) {
+        this.ia = new int[to - from];
+        for (int j=from; j<to; ++j) {
+            int value = array[j];
+            if (value<0 || value>=valueSize) {
+                throw new IllegalArgumentException(String.valueOf(value));
+            }
+            this.ia[j - from] = value;
+        }
+    }
+
+    /**
+     * Constructs a new {@code WrappedIntArray} instance from the specified data.
+     * @param il a list of integers
+     * @param from the first element to be included (inclusive)
+     * @param to the last element to be included (exclusive)
+     * @param valueSize the exclusive end of the range of non-negative
+     * array values
+     * @throws IllegalArgumentException if
+     * {@code ((il[j] < 0) || (il[j] >= valueSize))} for any index {@code j}
+     * satisfying  {@code ((j >= 0) && (j < il.size()))}
+     * @throws IndexOutOfBoundsException if {@code ((from < 0) || (to > ia.length))}
+     * @throws NegativeArraySizeException if {@code (to > from)}
+     * @throws NullPointerException if {@code (il == null)}
+     */
+    public WrappedIntArray(IntList il, int from, int to, int valueSize) {
+        this.ia = new int[to - from];
+        for (int i=from, j=0; j<il.size(); ++i, ++j) {
+            int value = il.get(i);
             if (value<0 || value>=valueSize) {
                 throw new IllegalArgumentException(String.valueOf(value));
             }

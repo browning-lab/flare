@@ -20,13 +20,11 @@ package blbutil;
 import java.io.File;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
-import java.util.Set;
 
 /**
  * Class {@code Utilities} contains miscellaneous static utility methods.
@@ -132,9 +130,9 @@ public class Utilities {
      * file contains two non-white-space characters separated by one or
      * more white-space characters
      */
-    public static Set<String> idSet(File file) {
+    public static HashSet<String> idSet(File file) {
         if (file==null) {
-            return Collections.emptySet();
+            return new HashSet<>();
         }
         else {
             if (file.exists()==false) {
@@ -145,7 +143,7 @@ public class Utilities {
                 String s = "file is a directory: " + file;
                 throw new IllegalArgumentException(s);
             }
-            Set<String> idSet = new HashSet<>();
+            HashSet<String> idSet = new HashSet<>();
             try (FileIt<String> it = InputIt.fromGzipFile(file)) {
                 while (it.hasNext()) {
                     String line = it.next().trim();
@@ -261,7 +259,7 @@ public class Utilities {
      */
     public static void exit(String s) {
         System.err.println();
-        System.err.println(s);
+        System.err.print(s);
         exit();
     }
 

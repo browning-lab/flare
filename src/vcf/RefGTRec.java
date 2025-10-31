@@ -17,22 +17,28 @@
  */
 package vcf;
 
+import blbutil.BooleanArray;
+import blbutil.Const;
 import ints.IndexArray;
 import ints.IntArray;
 
 /**
  * <p>Interface {@code RefGTRec} represents represents phased genotype data
- * for one marker.  For implementations of this interface, unless otherwise
- * specified in the implementation documentation, if the {@code isAlleleCoded()}
- * method returns {@code false}, the {@code majorAllele()},
- * {@code alleleCount()}, and {@code hapIndex()} methods will be computationally
- * expensive with compute time proportional to the number of haplotypes.
- * Alternatively if the {@code isAlleleCoded()} method returns
- * {@code true}, the {@code maps()} and {@code map()} methods will be
+ * for one VCF record. For implementations of this interface, unless otherwise
+ * specified in the implementation documentation, if the
+ * {@code isAlleleRecord()} method returns {@code false}, the {@code nullRow()},
+ * {@code alleleCount()}, and {@code nonNullRowHap()} methods will be
+ * computationally expensive with compute time proportional to the number of
+ * haplotypes. Alternatively, if the {@code isAlleleRecord()} method
+ * returns {@code true}, the {@code maps()} and {@code map()} methods will be
  * computationally expensive with compute time proportional to the number
  * of haplotypes.
  * </p>
- * <p>All instances of {@code RefGTRec} are required to be immutable.
+ * <p>Memory efficiency is greatest if {@code this.nullRow()} returns the
+ * major allele, but it is not required that {@code this.nullRow()} return
+ * the major allele because sample filtering can change the major allele.
+ * </p>
+ * <p>Instances of {@code RefGTRec} are required to be immutable.
  * </p>
  *
  * @author Brian L. Browning {@code <browning@uw.edu>}
@@ -40,19 +46,20 @@ import ints.IntArray;
 public interface RefGTRec extends GTRec {
 
     /**
-     * Returns an allele-coded {@code RefGTRec} instance for the
-     * specified data.
+     * Constructs and returns a new {@code RefGTRec} instance from the specified
+     * data. The {@code isNonMajorAlleleRecord()} method of the returned
+     * {@code RefGTRec} instance will return {@code true}.
      * @param rec the phased, non-missing genotype data
      * @return an allele-coded {@code RefGTRec} instance for the
      * specified data
      * @throws NullPointerException if {@code rec == null}
      */
     static RefGTRec alleleRefGTRec(RefGTRec rec) {
-        if (rec.isAlleleCoded()) {
+        if (rec.isAlleleRecord()) {
             return rec;
         }
         if (rec.marker().nAlleles()==2) {
-            return new TwoAlleleRefGTRec(rec);
+            return new DialleleRefGTRec(rec);
         }
         else {
             return new AlleleRefGTRec(rec);
@@ -60,21 +67,22 @@ public interface RefGTRec extends GTRec {
     }
 
     /**
-     * Constructs and returns a new allele-coded {@code RefGTRec} instance
-     * from the specified data.
+     * Constructs and returns a new {@code RefGTRec} instance from the
+     * specified data. The {@code isAlleleRecord()} method of the returned
+     * {@code RefGTRec} instance will return {@code true}.
      *
      * @param gtp a VCF record parser that extracts sample genotypes
-     * @return an allele-coded {@code RefGTRec} instance
+     * @return a new {@code RefGTRec} instance
      *
      * @throws IllegalArgumentException if the VCF record contains an
      * unphased genotype or missing allele
      * @throws IllegalArgumentException if a format error is detected in the
      * VCF record
-     * @throws NullPointerException if {@code gtp == null}
+     * @throws NullPointerException if {@code (gtp == null)}
      */
     static RefGTRec alleleRefGTRec(VcfRecGTParser gtp) {
         if (gtp.nAlleles()==2) {
-            return new TwoAlleleRefGTRec(gtp);
+            return new DialleleRefGTRec(gtp);
         }
         else {
             return new AlleleRefGTRec(gtp);
@@ -82,35 +90,33 @@ public interface RefGTRec extends GTRec {
     }
 
     /**
-     * Constructs and returns a new allele-coded {@code RefGTRec} instance
-     * from the specified data.
-     *
+     * Constructs and returns a new {@code RefGTRec} instance from the specified
+     * data. The {@code isAlleleRecord()} method of the returned
+     * {@code RefGTRec} instance will return {@code true}. The contract for
+     * this method is undefined if any two integers in {@code alleleToHaps}
+     * are equal.
      * @param marker the marker
      * @param samples the samples
-     * @param alleleToHaps an array whose {@code j}-th element is {@code null}
-     * if {@code j} is the major allele and otherwise is a list of haplotypes
-     * sorted in increasing order that carry the {@code j}-th allele.
-     * If there is more than one allele with a maximal allele count, the
-     * major allele is the smallest allele with maximal allele count.
-     * If a haplotype is contained in a list for more than one non-major allele,
-     * the haplotype will be assumed to carry the smallest allele.
+     * @param alleleToHaps an array of length {@code marker.nAlleles()} with
+     * a unique {@code null} element and whose {@code j}-th element
+     * is either {@code null} or an {@code int[]} whose elements are an
+     * increasing list of the haplotypes that carry the {@code j}-th allele
      * @return an allele-coded {@code RefGTRec} instance
      *
-     * @throws IllegalArgumentException if the {@code (hapIndices[j] == null)}
-     * and {@code j} is not the major allele or if
-     * {@code (hapIndices[j] != null)} and {@code j} is the major allele
-     * @throws IllegalArgumentException if any non-null element of
-     * {@code hapIndices} is not a sorted list of distinct haplotype indices
-     * between 0 (inclusive) and {@code 2*samples.size()} (exclusive)
      * @throws IllegalArgumentException if
-     * {@code marker.nAlleles() != hapIndices.length}
+     * {@code marker.nAlleles() != alleleToHaps.length}
+     * @throws IllegalArgumentException {@code alleleToHaps} does not
+     * have a unique {@code null} element
+     * @throws IllegalArgumentException if any non-null element of
+     * {@code alleleToHaps} is not a sorted list of distinct haplotype indices
+     * between 0 (inclusive) and {@code 2*samples.size()} (exclusive)
      * @throws NullPointerException if
-     * {@code marker == null || samples == null || hapIndices == null}
+     * {@code ((marker == null) || (samples == null) || (alleleToHaps == null))}
      */
     static RefGTRec alleleRefGTRec(Marker marker, Samples samples,
             int[][] alleleToHaps) {
         if (marker.nAlleles()==2) {
-            return new TwoAlleleRefGTRec(marker, samples, alleleToHaps);
+            return new DialleleRefGTRec(marker, samples, alleleToHaps);
         }
         else {
             return new AlleleRefGTRec(marker, samples, alleleToHaps);
@@ -118,19 +124,98 @@ public interface RefGTRec extends GTRec {
     }
 
     /**
-     * Returns an array of length {@code this.marker().nAlleles()} whose
-     * {@code j}-th element is {@code null} or is a list of the
-     * haplotypes in increasing order that carry allele {@code j}. Exactly
-     * one element of the returned array must be {@code null}. It is
-     * recommended that the {@code null} element correspond to the major allele
-     * with lowest index, but this is not a requirement for implementations
-     * of this method.
+     * Returns {@code true} if this instance stores the indices of haplotypes
+     * that carry each allele {@code j} where {@code (j != this.nullRow())},
+     * and returns {@code false} otherwise.
      *
-     * @return Returns an array of length {@code this..marker().nAlleles()} whose
-     * {@code j}-th element is {@code null} or is a list of the
-     * haplotypes in increasing order that carry allele {@code j}
+     * @return {@code true} if this instance stores the indices of haplotypes
+     * that carry each allele {@code j} where {@code (j != this.nullRow())}
+     */
+    boolean isAlleleRecord();
+
+    /**
+     * Returns the sum of the lengths of non-null rows of the specified
+     * two-dimensional array.
+     * @param alleleToHaps a two-dimensional array
+     * @return the sum of the lengths of non-null rows
+     * @throws NullPointerException if {@code IalleleToHaps == null)}
+     */
+    public static int nonNullCnt(int[][] alleleToHaps) {
+        int nonNullCnt=0;
+        for (int[] ia : alleleToHaps) {
+            if (ia!=null) {
+                nonNullCnt += ia.length;
+            }
+        }
+        return nonNullCnt;
+    }
+
+    /**
+     * Returns the smallest row index {@code j} such that
+     * {@code (allelesToHap[j] == null)} or {@code -1}
+     * if no such allele index exists.
+     *
+     * @param alleleToHaps a two-dimensional array
+     * @return the smallest row index {@code j} such that
+     * {@code (allelesToHap[j] == null)} or {@code -1}
+     * if no such allele index exists
+     * @throws NullPointerException if {@code alleleToHaps == null}
+     */
+    public static int nullRow(int[][] alleleToHaps) {
+        for (int j=0; j<alleleToHaps.length; ++j) {
+            if (alleleToHaps[j]==null) {
+                return j;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Returns the index of the unique {@code null} element of
+     * {@code this.alleleToHaps()}.
+     *
+     * @return the index of the unique {@code null} element of
+     * {@code this.alleleToHaps()}
+     */
+    int nullRow();
+
+    /**
+     * Returns an array of length {@code marker.nAlleles()} with
+     * a unique {@code null} element and whose {@code j}-th element
+     * is either {@code null} or an {@code int[]} whose elements are an
+     * increasing list of the haplotypes that carry the {@code j}-th allele.
+     *
+     * @return an array of length {@code marker.nAlleles()} with
+     * a unique {@code null} element and whose {@code j}-th element
+     * is either {@code null} or an {@code int[]} whose elements are an
+     * increasing list of the haplotypes that carry the {@code j}-th allele
      */
     int[][] alleleToHaps();
+
+    /**
+     * Returns the number of haplotypes carrying an allele {@code j} where
+     * {@code (j == this.nullRow())}.
+     *
+     * @return the number of haplotypes carrying an allele {@code j} where
+     * {@code (j == this.nullRow())}
+     */
+    int nullRowAlleleCnt();
+
+    /**
+     * Returns an array of length {@code this.nAlleles()} whose {@code j}-th
+     * element is the allele count of the {@code j}-th allele.
+     * @return an array of allele counts
+     */
+    int[] alleleCounts();
+
+    /**
+     * Returns the number of haplotypes that carry the specified allele.
+     * @param allele an allele index
+     * @return the number of haplotypes that carry the specified allele
+     * @throws IndexOutOfBoundsException if
+     * {@code ( (allele < 0) ||  (allele >= this.nAlleles()) )}
+     */
+    int alleleCount(int allele);
 
     /**
      * Returns an {@code IndexArray} with {@code this.size()} elements that maps
@@ -140,15 +225,6 @@ public interface RefGTRec extends GTRec {
      * haplotype to allele
      */
     IndexArray hapToAllele();
-
-    /**
-     * Returns the sum of the lengths of non-null rows of
-     * {@code this.alleleToHaps()}.
-     *
-     * @return the sum of the lengths of non-null rows of
-     * {@code this.alleleToHaps()}
-     */
-    int nAlleleCodedHaps();
 
     /**
      * Returns {@code true}.
@@ -169,55 +245,19 @@ public interface RefGTRec extends GTRec {
     boolean isPhased();
 
     /**
-     * Returns {@code true} if this instance stores the indices of haplotypes
-     * that carry non-major alleles, and returns {@code false} otherwise.
-     *
-     * @return {@code true} if this instance stores the indices of haplotypes
-     * that carry non-major alleles
-     */
-    boolean isAlleleCoded();
-
-    /**
-     * Returns the major allele with lowest index.
-     *
-     * @return the major allele with lowest index
-     */
-    int majorAllele();
-
-    /**
-     * Returns an array of length {@code this.nAlleles()} whose {@code j}-th
-     * element is the allele count of the {@code j}-th allele.
-     * @return an array of allele counts
-     */
-    int[] alleleCounts();
-
-    /**
-     * Returns the number of haplotypes that carry the specified
-     * non-major allele.
-     * @param allele an allele index
-     * @return the number of haplotypes that carry the specified non-major
-     * allele
-     * @throws IllegalArgumentException if
-     * {@code allele == this.majorAllele()}
-     * @throws IndexOutOfBoundsException if
-     * {@code allele < 0 ||  allele >= this.nAlleles()}
-     */
-    int alleleCount(int allele);
-
-    /**
      * Returns index of the haplotype that carries the specified copy of the
      * specified allele.
      * @param allele an allele index
      * @param copy a copy index
      * @return index of the haplotype that carries the specified allele
      * @throws IllegalArgumentException if
-     * {@code allele == this.majorAllele()}
+     * {@code (allele == this.nullRow())}
      * @throws IndexOutOfBoundsException if
-     * {@code allele < 0 ||  allele >= this.nAlleles()}
+     * {@code ((allele < 0) || (allele >= this.nAlleles()))}
      * @throws IndexOutOfBoundsException if
-     * {@code copy < 0 ||  copy >= this.alleleCount(allele)}
+     * {@code ((copy < 0) || (copy >= this.alleleCount(allele)))}
      */
-    int hapIndex(int allele, int copy);
+    int nonNullRowHap(int allele, int copy);
 
     /**
      * Returns {@code true} if the specified haplotype carries the specified
@@ -227,9 +267,9 @@ public interface RefGTRec extends GTRec {
      * @return {@code true} if the specified haplotype carries the specified
      * allele
      * @throws IndexOutOfBoundsException if
-     * {@code hap < 0 || hap >= this.size()}
+     * {@code ((hap < 0) || (hap >= this.size()))}
      * @throws IndexOutOfBoundsException if
-     * {@code allele < 0 || allele >= this.nAlleles()}
+     * {@code ((allele < 0) || (allele >= this.nAlleles()))}
      */
     boolean isCarrier(int allele, int hap);
 
@@ -240,7 +280,7 @@ public interface RefGTRec extends GTRec {
     int nMaps();
 
     /**
-     * Returns an array of maps, which when composed map haplotype indices
+     * Returns an array of maps, whose composition maps haplotype indices
      * to alleles.  The allele on haplotype {@code h} is determined
      * by the following calculation:
      * <pre>
@@ -251,7 +291,7 @@ public interface RefGTRec extends GTRec {
             }
             int allele = value
        </pre>
-     * @return an array of maps, which when composed map haplotype indices
+     * @return an array of maps, whose composition maps haplotype indices
      * to alleles
      */
     IntArray[] maps();
@@ -261,7 +301,107 @@ public interface RefGTRec extends GTRec {
      * @param index the index in {@code this.maps()}
      * @return {@code this.maps()[index]}
      * @throws IndexOutOfBoundsException if
-     * {@code index < 0 || index >= this.nMaps()}
+     * {@code ((index < 0) || (index >= this.nMaps()))}
      */
     IntArray map(int index);
+
+    /**
+     * Returns the data in this {@code RefGTRec} as a string VCF record with
+     * correct INFO/AN and INFO/AC fields and with FORMAT/GT  as the only
+     * FORMAT field.
+     * @return the data represented by {@code this} as a string VCF record
+     */
+    @Override
+    public String toString();
+
+    /**
+     * Returns the data in this {@code RefGTRec} as a string VCF record with
+     * correct INFO/AN and INFO/AC fields and with FORMAT/GT  as the only
+     * FORMAT field.
+     * @return the data represented by {@code this} as a string VCF record
+     */
+    public String toVcfRecord();
+
+    /**
+     * Returns the data in the specified {@code RefGTRec} object as a
+     * string VCF record with with FORMAT/GT as the only FORMAT field.
+     * If {@code (isHaploid == null)}, the returned string VCF record will
+     * have correct INFO/AN and INFO/AC fields.  Otherwise, no changes
+     * will be made to the VCF record INFO field.
+     * If {@code (isHaploid != null)} and
+     * {@code ( (0 <= j) && (j < isHaploid.size()) && (isHaploid.get(j) == true) )}
+     * the second haplotype of the {@code j}-th sample will not printed.
+     * @param isHaploid a boolean array with {@code this.samples().size()}
+     * elements whose {@code j}-th value is {@code true} if the second
+     * haplotype of the {@code j}-th sample should not be printed
+     * @return the data represented by {@code this} as a string VCF record
+     *
+     * @throws IllegalArgumentException if {
+     * {@code ((isHaploid !=null) && (isHaploid.size() != this.samples().size())}
+     */
+    public String toVcfRecord(BooleanArray isHaploid);
+
+    /**
+     * Returns the data in the specified {@code RefGTRec} object as a
+     * string VCF record with correct INFO/AN and INFO/AC fields and
+     * with FORMAT/GT  as the only FORMAT field. The implementation of
+     * this method has suboptimal computational efficiency if
+     * {@code (rec.isAlleleCoded() == true)}.
+     * @param rec a string VCF record with phased, non-missing genotypes
+     * @return the data represented by {@code rec} as a string VCF record
+     * @throws NullPointerException if {@code (rec == null)}
+     */
+    public static String toString(RefGTRec rec) {
+        int nHaps = rec.size();
+        StringBuilder sb = new StringBuilder();
+        MarkerUtils.appendFirst8Fields(rec.marker(), sb); // no INFO/{AN,AC} update
+//        MarkerUtils.appendFirst8Fields(rec.marker(), nHaps, rec.alleleCounts(), sb);
+        sb.append("\tGT");
+        assert (nHaps & 0b1) == 0;
+        for (int h=0; h<nHaps; h+=2) {
+            sb.append(Const.tab);
+            sb.append(rec.get(h));
+            sb.append(Const.phasedSep);
+            sb.append(rec.get(h | 0b1));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Returns the data in the specified {@code RefGTRec} object as a
+     * string VCF record with FORMAT/GT  as the only FORMAT field.
+     * The implementation of this method has suboptimal computational
+     * efficiency if {@code (rec.isAlleleCoded() == true)}. If
+     * {@code (0 <= j) && (j < isHaploid.size()) && (isHaploid.get(j) == true)}
+     * the second haplotype of the {@code j}-th sample will not printed.
+     * @param rec a VCF record with phased, non-missing genotypes
+     * @param isHaploid a boolean array with {@code this.samples().size()}
+     * elements whose {@code j}-th value is {@code true} if the second
+     * haplotype of the {@code j}-th sample should not be printed
+     * @return the data represented by {@code rec} as a string VCF record
+     *
+     * @throws IllegalArgumentException if
+     * {@code ((isHaploid.size() != rec.samples().size())}
+     * @throws NullPointerException if
+     * {@code ((rec == null) || (isHaploid == null))}
+     */
+    public static String toString(RefGTRec rec, BooleanArray isHaploid) {
+        if (isHaploid.size()!=rec.samples().size()) {
+            throw new IllegalArgumentException(String.valueOf(isHaploid.size()));
+        }
+        int nHaps = rec.size();
+        StringBuilder sb = new StringBuilder();
+        MarkerUtils.appendFirst8Fields(rec.marker(), sb); // no INFO/{AN,AC} update
+        sb.append("\tGT");
+        assert (nHaps & 0b1) == 0;
+        for (int h=0; h<nHaps; h+=2) {
+            sb.append(Const.tab);
+            sb.append(rec.get(h));
+            if (isHaploid.get(h>>1)==false) {
+                sb.append(Const.phasedSep);
+                sb.append(rec.get(h | 0b1));
+            }
+        }
+        return sb.toString();
+    }
 }

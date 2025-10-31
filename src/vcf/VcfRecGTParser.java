@@ -59,23 +59,38 @@ public final class VcfRecGTParser {
      * record.
      * @param vcfHeader the VCF meta-information lines and header line
      * @param vcfRec the VCF record
-     * @param filter a filter for a VCF record's ID, QUAL, FILTER, and
-     * INFO subfields
      * @throws IllegalArgumentException if {@code vcfHeader.size() == 0}
      * @throws IllegalArgumentException if a format error is detected in the
      * {@code vcfRecord}
      * @throws NullPointerException if
-     * {@code (vcfHeader == null) || (vcfRec == null) || (filter == null}}
+     * {@code (vcfHeader == null) || (vcfRec == null)}
+     */
+    public VcfRecGTParser(VcfHeader vcfHeader, String vcfRec) {
+        this(vcfHeader, vcfRec, false);
+    }
+
+    /**
+     * Constructs a new {@code VcfRecGTParser} object from the specified VCF
+     * record.
+     * @param vcfHeader the VCF meta-information lines and header line
+     * @param vcfRec the VCF record
+     * @param stripOptionalFields {@code true} if the VCF record's ID,
+     * QUAL, FILTER, and INFO subfields should be discarded
+     * @throws IllegalArgumentException if {@code vcfHeader.size() == 0}
+     * @throws IllegalArgumentException if a format error is detected in the
+     * {@code vcfRecord}
+     * @throws NullPointerException if
+     * {@code (vcfHeader == null) || (vcfRec == null)}
      */
     public VcfRecGTParser(VcfHeader vcfHeader, String vcfRec,
-            VcfFieldFilter filter) {
+            boolean stripOptionalFields) {
         if (vcfHeader.nSamples()==0) {
             throw new IllegalArgumentException("nSamples==0");
         }
         this.vcfHeader = vcfHeader;
         this.samples = vcfHeader.samples();
         this.vcfRec = vcfRec;
-        this.marker = new Marker(vcfRec, filter);
+        this.marker = Marker.fromVcfRecord(vcfRec, stripOptionalFields);
         this.nAlleles = marker.nAlleles();
         this.nSamples = vcfHeader.nSamples();
         this.ninthTabPos = ninthTabPos(vcfRec);
@@ -176,7 +191,7 @@ public final class VcfRecGTParser {
             if (pos == -1) {
                 throwFieldCountError(vcfHeader, vcfRec);
             }
-            int nextUnfiltered = vcfHeader.unfilteredSampleIndex(s);
+            int nextUnfiltered = vcfHeader.filteredSampleIndex(s);
             while (++unfilt < nextUnfiltered) {
                 pos = vcfRec.indexOf(Const.tab, pos + 1);
                 if (pos == -1) {
@@ -244,7 +259,7 @@ public final class VcfRecGTParser {
             if (pos == -1) {
                 throwFieldCountError(vcfHeader, vcfRec);
             }
-            int nextUnfiltered = vcfHeader.unfilteredSampleIndex(s);
+            int nextUnfiltered = vcfHeader.filteredSampleIndex(s);
             while (++unfilt < nextUnfiltered) {
                 pos = vcfRec.indexOf(Const.tab, pos + 1);
                 if (pos == -1) {
@@ -290,7 +305,7 @@ public final class VcfRecGTParser {
             if (tabIndex == -1) {
                 throwFieldCountError(vcfHeader, vcfRec);
             }
-            int nextUnfiltered = vcfHeader.unfilteredSampleIndex(s);
+            int nextUnfiltered = vcfHeader.filteredSampleIndex(s);
             while (++unfilt < nextUnfiltered) {
                 tabIndex = vcfRec.indexOf(Const.tab, tabIndex + 1);
                 if (tabIndex == -1) {
@@ -354,7 +369,7 @@ public final class VcfRecGTParser {
             if (tabIndex == -1) {
                 throwFieldCountError(vcfHeader, vcfRec);
             }
-            int nextUnfiltered = vcfHeader.unfilteredSampleIndex(s);
+            int nextUnfiltered = vcfHeader.filteredSampleIndex(s);
             while (++unfilt < nextUnfiltered) {
                 tabIndex = vcfRec.indexOf(Const.tab, tabIndex + 1);
                 if (tabIndex == -1) {
@@ -421,7 +436,7 @@ public final class VcfRecGTParser {
                 + "The first genotype is "
                 + (samples.isDiploid(sample) ? "diploid" : "haploid")
                 + ", but the genotype at position "
-                + marker.chrom() + ":" + marker.pos()
+                + marker.chromID() + ":" + marker.pos()
                 + " is " + (isDiploid ? "diploid" : "haploid");
         throw new IllegalArgumentException(err);
     }
@@ -473,7 +488,7 @@ public final class VcfRecGTParser {
     }
 
     private static void throwFieldCountError(VcfHeader vcfHeader, String vcfRec) {
-        String src = vcfHeader.src();
+        String source = vcfHeader.source();
         String[] fields = StringUtil.getFields(vcfRec, Const.tab);
         StringBuilder sb = new StringBuilder(1000);
         sb.append("ERROR: CF header line has ");
@@ -483,7 +498,7 @@ public final class VcfRecGTParser {
         sb.append(" fields");
         sb.append(Const.nl);
         sb.append("File source: ");
-        sb.append(src);
+        sb.append(source);
         sb.append(Const.nl);
         sb.append(Arrays.toString(fields));
         sb.append(Const.nl);
@@ -503,9 +518,9 @@ public final class VcfRecGTParser {
      * the specified VCF record or if the specified VCF header is
      * inconsistent with the specified VCF header.
      *
-     * @throws NullPointerException if {@code vcfRec == null || rec == null}
+     * @throws NullPointerException if {@code ((vcfRec == null) || (rec == null))}
      */
-    public int[][] nonMajRefIndices() {
+    public int[][] nonMajAlleleIndices() {
         int[] alleles = phasedAlleles();
         int[] alCnts = new int[nAlleles];
         for (int a : alleles) {

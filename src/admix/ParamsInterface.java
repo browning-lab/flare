@@ -1,5 +1,8 @@
 package admix;
 
+import java.util.Arrays;
+import java.util.stream.IntStream;
+
 /**
  * <p>Interface {@code ParamsInterface} represents the analysis parameters
  * for a local ancestry inference analysis.</p>
@@ -12,10 +15,10 @@ package admix;
 public interface ParamsInterface {
 
     /**
-     * Returns the fixed parameters.
-     * @return the fixed parameters
+     * Returns the reference and target sample metadata.
+     * @return the reference and target sample metadata
      */
-    FixedParams fixedParams();
+    SampleData sampleData();
 
     /**
      * Returns the number of generations to the admixture event.
@@ -24,10 +27,10 @@ public interface ParamsInterface {
     double T();
 
     /**
-     * Returns  an array of length {@code this.fixedParams().nAnc()}
+     * Returns  an array of length {@code this.sampleData().nAnc()}
      * whose {@code i}-th entry is the proportion of ancestry {@code i}
      * in the target samples.
-     * @return an array of length {@code this.fixedParams().nAnc()}
+     * @return an array of length {@code this.sampleData().nAnc()}
      * whose {@code i}-th entry is the proportion of ancestry {@code i}
      * in the target samples
      */
@@ -41,17 +44,17 @@ public interface ParamsInterface {
      * @return the copying probability for the specified reference panel
      * conditional on the specified ancestry
      * @throws IndexOutOfBoundsException if
-     * {@code anc < 0 || anc >= this.fixedParams().nAnc()}
+     * {@code anc < 0 || anc >= this.sampleData().nAnc()}
      * @throws IndexOutOfBoundsException if
-     * {@code panel < 0 || panel >= this.fixedParams().nRefPanels()}
+     * {@code panel < 0 || panel >= this.sampleData().nRefPanels()}
      */
     double p(int anc, int panel);
 
     /**
      * Returns the copying probability for each reference panel conditional
      * on each ancestry.  The returned matrix will have
-     * {@code this.fixedParams().nAnc()} rows and
-     * {@code this.fixedParams().nRefPanels()} columns.  The {@code [i][j]}
+     * {@code this.sampleData().nAnc()} rows and
+     * {@code this.sampleData().nRefPanels()} columns.  The {@code [i][j]}
      * entry of the returned array is the copying probability for
      * reference panel {@code j} conditional on ancestry {@code i}.
      * @return the copying probability for each reference panel conditional
@@ -61,8 +64,8 @@ public interface ParamsInterface {
 
     /**
      * Returns the miscopy probabilities for each ancestry and reference panel.
-     * The returned array will have {@code this.fixedParams().nAnc()} rows and
-     * {@code this.fixedParams().nRefPanels()} columns.
+     * The returned array will have {@code this.sampleData().nAnc()} rows and
+     * {@code this.sampleData().nRefPanels()} columns.
      * The {@code [i][j]} entry of the returned array is the miscopy
      * probability for ancestry {@code i} and reference panel {@code j}.
      * @return the miscopy probabilities
@@ -83,13 +86,13 @@ public interface ParamsInterface {
     double rho(int anc);
 
     /**
-     * Returns an array of length {@code this.fixedParams().nAnc()}
+     * Returns an array of length {@code this.sampleData().nAnc()}
      * whose {@code i}-th element is the intensity of the
      * exponential IBD segment length distribution for IBD segments
      * having a common ancestor with ancestry {@code i} before
      * the admixture event.
      *
-     * @return an array of length {@code this.fixedParams().nAnc()}
+     * @return an array of length {@code this.sampleData().nAnc()}
      * whose {@code i}-th element is the intensity of the
      * exponential IBD segment length distribution for IBD segments
      * having a common ancestor with ancestry {@code i} before
@@ -107,4 +110,63 @@ public interface ParamsInterface {
      */
     @Override
     String toString();
+
+    /**
+     * Returns an array of length {@code nAnc} with each element
+     * equal to {@code (1.0/nAnc)}.
+     * @param nAnc the number of ancestries
+     * @return an array of length {@code nAnc} with each element
+     * equal to {@code (1.0/nAnc)}.
+     * @throws IllegalArgumentException if {@code (nAnc <= 0)}
+     */
+    public static double[] defaultMu(int nAnc) {
+        if (nAnc<=0) {
+            throw new IllegalArgumentException(String.valueOf(nAnc));
+        }
+        double[] mu = new double[nAnc];
+        Arrays.fill(mu, 1.0f/nAnc);
+        return mu;
+    }
+
+    /**
+     * Returns the default {@code theta} values. The returned array will have
+     * one row per ancestry and one column per reference panel.
+     * @param sampleData reference and target sample metadata
+     * @return the default {@code theta} values
+     * @throws NullPointerException if {@code (sampleData == null)}
+     */
+    public static double[][] defaultTheta(SampleData sampleData) {
+        int nAnc = sampleData.nAnc();
+        int nRefHaps = sampleData.nRefHaps();
+        int nRefPanels = sampleData.nRefPanels();
+        double theta0 = liStephensPMismatch(nRefHaps);
+        double[] row = IntStream.range(0, nRefPanels)
+                .mapToDouble(j -> theta0)
+                .toArray();
+        return IntStream.range(0, nAnc)
+                .mapToObj(j -> row)
+                .toArray(double[][]::new);
+    }
+
+    /**
+     * <p>Return an approximation to the allele mismatch probability suggested
+     * by Li and Stephens.  The approximation uses a Riemann sum approximation
+     * of the natural log function.</p>
+     *
+     * <p>Refs:
+     * Li N, Stephens M. Genetics 2003 Dec;165(4):2213-33 and
+     * Marchini J, Howie B. Myers S, McVean G, Donnelly P. 2007;39(7):906-13.</p>
+     *
+     * @param nHaps the number of haplotypes
+     * @return an approximation to the Li and Stephens allele mismatch
+     * probability
+     * @throws IllegalArgumentException if {@code nHaps < 1}
+     */
+    public static double liStephensPMismatch(int nHaps) {
+        if (nHaps<1) {
+            throw new IllegalArgumentException(String.valueOf(nHaps));
+        }
+        double lambda = 1.0/((Math.log(nHaps) + 0.5));
+        return lambda/(2.0*(lambda + nHaps));
+    }
 }

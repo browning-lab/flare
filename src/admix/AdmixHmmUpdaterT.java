@@ -45,16 +45,16 @@ public class AdmixHmmUpdaterT {
      * Constructs a new {@code AdmixHmmUpdaterT} instance from the specified
      * data.
      * @param data the input data for local ancestry inference on a chromosome
-     * @throws NullPointerException if {@code data == null}
+     * @throws NullPointerException if {@code (data == null)}
      */
     public AdmixHmmUpdaterT(AdmixData data) {
         AdmixChromData chromData = data.chromData();
-        FixedParams fixedParams = data.params().fixedParams();
+        SampleData sampleData = data.params().sampleData();
         this.map = chromData.map();
         this.params = data.params();
         this.hmm = data.hmmProbs();
         this.nMarkers = chromData.targRefGT().nMarkers();
-        this.nAnc = fixedParams.nAnc();
+        this.nAnc = sampleData.nAnc();
 
         this.sumTSwitchProbs = 0.0;
         this.sumTGenDist = 0.0;

@@ -35,7 +35,7 @@ import vcf.RefGT;
  */
 public class EstimatedAncestry {
 
-    private final FixedParams fixedParams;
+    private final SampleData sampleData;
     private final RefGT targRefGT;
     private final int nAnc;
     private final int ancProbsLength;
@@ -58,14 +58,14 @@ public class EstimatedAncestry {
      * {@code (admixData == null) || (globalAncProbs == null)}
      */
     public EstimatedAncestry(AdmixData admixData, EstimatedGlobalAncProportions globalAncProbs) {
-        this.fixedParams = admixData.params().fixedParams();
+        this.sampleData = admixData.params().sampleData();
         this.targRefGT = admixData.chromData().targRefGT();
-        this.nAnc = fixedParams.nAnc();
+        this.nAnc = sampleData.nAnc();
         this.ancProbsLength = targRefGT.nMarkers()*nAnc;
         this.nTargHaps = admixData.chromData().nTargHaps();
-        this.storeAncProbs = fixedParams.par().probs();
+        this.storeAncProbs = sampleData.par().probs();
         if (storeAncProbs) {
-            probFormatter = new AdmixRecBuilder.ProbFormatter();
+            probFormatter = new AdmixRecBuilder.ProbFormatter(2);
             hapToAncProbs = new AtomicReferenceArray<>(nTargHaps);
             hapToAnc = null;
         }
@@ -161,7 +161,7 @@ public class EstimatedAncestry {
         if (end<start || end>targRefGT.nMarkers()) {
             throw new IndexOutOfBoundsException(String.valueOf(end));
         }
-        int nThreads = fixedParams.par().nthreads();
+        int nThreads = sampleData.par().nthreads();
         int stepSize = (end - start + nThreads - 1)/nThreads;
         IntList partEnds = new IntList(1<<8);
         for (int j=start; j<end; j+=stepSize) {
@@ -175,7 +175,7 @@ public class EstimatedAncestry {
     }
 
     private UnsignedByteArray partCompressedOutput(int start, int end) {
-        AdmixRecBuilder recBuilder = new AdmixRecBuilder(fixedParams, targRefGT, start, end);
+        AdmixRecBuilder recBuilder = new AdmixRecBuilder(sampleData, targRefGT, start, end);
         int nTargSamples = nTargHaps>>1;
         if (storeAncProbs) {
             for (int s=0; s<nTargSamples; ++s) {

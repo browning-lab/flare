@@ -17,7 +17,6 @@
  */
 package blbutil;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -138,8 +137,8 @@ public class BlockLineReader implements FileIt<String[]> {
     }
 
     @Override
-    public File file() {
-        return it.file();
+    public String source() {
+        return it.source();
     }
 
     @Override

@@ -90,7 +90,7 @@ public interface GeneticMap {
      * If the specified map file is {@code null}, the returned genetic map
      * will convert genome coordinates to genetic units by dividing by
      * 1,000,000.  If {@code (chromInt != null)} the genetic map will
-     * be restricted to chromosome {@code chromInt.chrom()}.
+     * be restricted to chromosome {@code chromInt.chromID()}.
      * @param file a PLINK-format genetic map file with cM units
      * @param chromInt a chromosome interval
      * @return a genetic map from the specified data.
@@ -119,7 +119,7 @@ public interface GeneticMap {
                 return PlinkGenMap.fromPlinkMapFile(file);
             }
             else {
-                return PlinkGenMap.fromPlinkMapFile(file, chromInt.chrom());
+                return PlinkGenMap.fromPlinkMapFile(file, chromInt.chromID());
             }
         }
     }

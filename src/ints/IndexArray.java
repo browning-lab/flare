@@ -21,9 +21,9 @@ package ints;
  * <p>Class {@code IndexArray} stores an array whose entries
  * are elements of a bounded set of non-negative integers along with an upper
  * bound. Both the stored array and upper bound are specified at the time of
- * object construction. It is the client code that constructs a
- * {@code IndexArray} object's responsibility to ensure that the bound
- * specified at construction is correct. The contract for this class
+ * object construction. The caller of an {@code IndexArray} constructor
+ * has the responsibility to ensure that the bound specified at construction
+ * is correct. The contract for this class
  * is undefined if the bound is specified at object construction is incorrect.
  * It is recommended that the bound be the minimum integer that is greater
  * than all elements in the stored array, but not is not a requirement.
@@ -47,7 +47,7 @@ public class IndexArray implements IntArray {
      * @param intArray an array with non-negative values
      * @param valueSize a value that is greater than all elements
      * of the specified array
-     * @throws NullPointerException if {@code IndexArray == null}
+     * @throws NullPointerException if {@code (IndexArray == null)}
      */
     public IndexArray(int[] intArray, int valueSize) {
         if (intArray==null) {
@@ -66,7 +66,7 @@ public class IndexArray implements IntArray {
      * @param intArray an array with non-negative values
      * @param valueSize a value that is greater than all elements
      * of the specified array
-     * @throws NullPointerException if {@code IndexArray == null}
+     * @throws NullPointerException if {@code (IndexArray == null)}
      */
     public IndexArray(IntArray intArray, int valueSize) {
         if (intArray==null) {

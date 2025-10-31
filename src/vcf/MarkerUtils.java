@@ -22,9 +22,6 @@ import blbutil.Const;
 import blbutil.StringUtil;
 import blbutil.Utilities;
 import ints.IntList;
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -55,13 +52,13 @@ public final class MarkerUtils  {
     }
 
     /**
-     * Returns {@code (marker.chrom() + ':' + marker.pos())}.
+     * Returns {@code (marker.chromID() + ':' + marker.pos())}.
      * @param marker a marker
-     * @return {@code (marker.chrom() + ':' + marker.pos())}
+     * @return {@code (marker.chromID() + ':' + marker.pos())}
      * @throws NullPointerException if {@code marker == null}
      */
     public static String coordinate(Marker marker) {
-        StringBuilder sb = new StringBuilder(marker.chrom());
+        StringBuilder sb = new StringBuilder(marker.chromID());
         sb.append(Const.colon);
         sb.append(marker.pos());
         return sb.toString();
@@ -69,19 +66,19 @@ public final class MarkerUtils  {
 
     /**
      * Returns
-     * {@code (marker.chrom() + ':' + marker.pos() + ':'
-     * + marker.refAlt().replace(Const.tab, Const.colon))}.
+     * {@code (marker.chromID() + ':' + marker.pos() + ':'
+     * + marker.alleles().replace(Const.tab, Const.colon))}.
      * @param marker a marker
-     * @return {{@code (marker.chrom() + ':' + marker.pos() + ':'
-     *          + marker.refAlt().replace(Const.tab, Const.colon))}
+     * @return {{@code (marker.chromID() + ':' + marker.pos() + ':'
+     * + marker.alleles().replace(Const.tab, Const.colon))}
      * @throws NullPointerException if {@code marker == null}
      */
     public static String coordinateAndAlleles(Marker marker) {
-        StringBuilder sb = new StringBuilder(marker.chrom());
+        StringBuilder sb = new StringBuilder(marker.chromID());
         sb.append(Const.colon);
         sb.append(marker.pos());
         sb.append(Const.colon);
-        sb.append(marker.refAlt().replace(Const.tab, Const.colon));
+        sb.append(marker.alleles().replace(Const.tab, Const.colon));
         return sb.toString();
     }
 
@@ -93,11 +90,12 @@ public final class MarkerUtils  {
      * @throws NullPointerException if {@code marker == null}
      */
     public static String[] ids(Marker marker) {
-        if (marker.hasIdData()) {
-            return StringUtil.getFields(marker.id(), Const.semicolon);
+        String id = marker.id();
+        if (id.equals(Const.MISSING_DATA_STRING)) {
+            return EMPTY_ID_ARRAY;
         }
         else {
-            return EMPTY_ID_ARRAY;
+            return StringUtil.getFields(marker.id(), Const.semicolon);
         }
     }
 
@@ -109,7 +107,7 @@ public final class MarkerUtils  {
      * @throws NullPointerException if {@code marker == null}
      */
     public static String[] alleles(Marker marker) {
-        String refAlt = marker.refAlt();
+        String refAlt = marker.alleles();
         int nAlleles = marker.nAlleles();
         String[] alleles = new String[nAlleles];
         int start = 0;
@@ -122,50 +120,6 @@ public final class MarkerUtils  {
                     : refAlt.substring(startIndex, endIndex);
         }
         return alleles;
-    }
-
-    /**
-     * Prints the first seven tab-delimited VCF fields for the specified
-     * marker to the specified {@code PrintWriter}. The delimiter preceding
-     * the 8-th VCF field (the INFO field) is not appended.
-     * @param marker a marker
-     * @param out the {@code PrintWriter} that will receive output
-     * @throws NullPointerException if {@code (marker == null) || (out == null)}
-     */
-    public static void printFirst7Fields(Marker marker, PrintWriter out) {
-        out.print(marker.chrom());
-        out.print(Const.tab);
-        out.print(marker.pos());
-        out.print(Const.tab);
-        out.print(marker.id());
-        out.print(Const.tab);
-        out.print(marker.refAlt());
-        out.print(Const.tab);
-        out.print(marker.qual());
-        out.print(Const.tab);
-        out.print(marker.filter());
-    }
-
-    /**
-     * Appends the first seven tab-delimited VCF fields for the specified
-     * marker to the specified {@code StringBuilder}. The delimiter preceding
-     * the 8-th field (the INFO field) is not appended.
-     * @param marker a marker
-     * @param sb the {@code StringBuilder} that will be appended
-     * @throws NullPointerException if {@code (marker == null) || (sb == null)}
-     */
-    public static void appendFirst7Fields(Marker marker, StringBuilder sb) {
-        sb.append(marker.chrom());
-        sb.append(Const.tab);
-        sb.append(marker.pos());
-        sb.append(Const.tab);
-        sb.append(marker.id());
-        sb.append(Const.tab);
-        sb.append(marker.refAlt());
-        sb.append(Const.tab);
-        sb.append(marker.qual());
-        sb.append(Const.tab);
-        sb.append(marker.filter());
     }
 
     /**
@@ -199,8 +153,8 @@ public final class MarkerUtils  {
             index = vcfRec.indexOf(Const.tab, index+1);
         }
         if (indices.size() < nTabs) {
-            String s = "VCF record does not contain " + nTabs + " tabs:"
-                    + truncate(vcfRec, 800);
+            String s = "VCF record does not contain at least " + nTabs + " tabs:"
+                    + truncate(vcfRec, 200);
             throw new IllegalArgumentException(s);
         }
         return indices;
@@ -218,7 +172,7 @@ public final class MarkerUtils  {
      * @throws IllegalArgumentException if {@code chrom} contains
      * a whitespace character.
      * @throws IndexOutOfBoundsException if
-     * {@code ChromIds.instance().getIndex(chrom) >= Short.MAX_VALUE}.
+     * {@code ChromIds.instance().getIndex(chrom) >= Marker.MAX_CHROMOSOMES
      */
     static short chromIndex(String vcfRec, String chrom) {
         if (chrom.isEmpty()
@@ -235,7 +189,7 @@ public final class MarkerUtils  {
             }
         }
         int chrIndex = ChromIds.instance().getIndex(chrom);
-        if (chrIndex>=Short.MAX_VALUE) {
+        if (chrIndex>=Marker.MAX_CHROMOSOMES) {
             throw new IndexOutOfBoundsException(String.valueOf(chrIndex));
         }
         return (short) chrIndex;
@@ -252,7 +206,7 @@ public final class MarkerUtils  {
         Arrays.sort(bases);
         List<String> perms = new ArrayList<>(120);
         permute(new char[0], bases, perms);
-        // next add monomorphic markers
+        // Add markers without ALT allele
         perms.add("A\t.");
         perms.add("C\t.");
         perms.add("G\t.");
@@ -290,4 +244,174 @@ public final class MarkerUtils  {
         }
     }
 
+    /**
+     * Appends the first eight tab-delimited fields of a VCF record for the
+     * specified marker (the CHROM, POS, ID, REF, ALT, QUAL, FILTER, and INFO
+     * fields) to the specified {@code StringBuilder}.
+     * @param marker a marker storing the first 8 VCF fields
+     * @param sb the {@code StringBuilder} to be appended
+     * @throws NullPointerException if {@code (marker == null) || (sb == null)}
+     */
+    public static void appendFirst8Fields(Marker marker, StringBuilder sb) {
+        sb.append(marker.chromID());
+        sb.append('\t');
+        sb.append(marker.pos());
+        sb.append('\t');
+        sb.append(marker.fields());
+    }
+
+    /**
+     * Appends the first eight tab-delimited fields of a VCF record for the
+     * specified marker (the CHROM, POS, ID, REF, ALT, QUAL, FILTER, and INFO
+     * fields) to the specified {@code StringBuilder}. The specified INFO/AN
+     * and INFO/AC fields will be added to the beginning of the VCF INFO field.
+     * If the INFO/AN or iNFO/AC fields exist in {@code this.info()}, the
+     * existing INFO/AN or INFO/AC field will be deleted.
+     *
+     * @param marker a marker storing the first 8 VCF fields
+     * @param sb the {@code StringBuilder} to be appended
+     * @param an the total number of alleles in called genotypes
+     * @param alleleCounts an array of length {@code this.nAlleles()} whose
+     * {@code k-th} entry is the allele count in called genotypes
+     * for the {@code k}-th allele
+     * @throws IllegalArgumentException if
+     * {@code (this.nAlleles() != alleleCounts.length)}
+     * @throws NullPointerException if
+     * {@code ((sb == null) || (alleleCounts == null))}
+     */
+    public static void appendFirst8Fields(Marker marker, int an,
+            int[] alleleCounts, StringBuilder sb) {
+        sb.append(marker.chromID());
+        sb.append('\t');
+        sb.append(marker.pos());
+        sb.append('\t');
+        String fields = marker.fields();
+        int lastTabP1 = fields.lastIndexOf(Const.tab) + 1;
+        sb.append(fields, 0, lastTabP1);
+        appendInfo(marker, an, alleleCounts, sb);
+    }
+
+
+    private static void appendInfo(Marker marker, int an, int[] alleleCounts, StringBuilder sb) {
+        if (marker.nAlleles()!=alleleCounts.length) {
+            throw new IllegalArgumentException(Arrays.toString(alleleCounts));
+        }
+        appendCounts(alleleCounts, sb, an);
+        String info = marker.info();
+        int start = 0;
+        while (start<info.length()) {
+            int end = info.indexOf(';', start);
+            if (end==-1) {
+                end = info.length();
+            }
+            if (start<end) {
+                String field = info.substring(start, end).trim();
+                if (field.length()>0
+                        && field.equals(".") == false
+                        && field.startsWith("AN=")==false
+                        && field.startsWith("AC=")==false) {
+                    sb.append(';');
+                    sb.append(field);
+                }
+            }
+            start = end + 1;
+        }
+    }
+
+    private static void appendCounts(int[] alleleCounts, StringBuilder sb, int an) {
+        sb.append("AN=");
+        sb.append(an);
+        sb.append(";AC=");
+        for (int j=1; j<alleleCounts.length; ++j) {   // begin with first ALT allele
+            if (j>1){
+                sb.append(',');
+            }
+            sb.append(alleleCounts[j]);
+        }
+    }
+
+    /*
+     * Prints the first eight tab-delimited fields of a VCF record for the
+     * specified marker (the CHROM, POS, ID, REF, ALT, QUAL, FILTER, and INFO
+     * fields) to the specified {@code StringBuilder}.
+     * @param marker a marker storing the first 8 VCF fields
+     * @param out the object to which the marker fields will be printed
+     * @throws NullPointerException if {@code (marker == null) || (out == null)}
+     */
+    public static void printFirst8Fields(Marker marker, PrintWriter out) {
+        out.print(marker.chromID());
+        out.print('\t');
+        out.print(marker.pos());
+        out.print('\t');
+        out.print(marker.fields());
+    }
+
+    /**
+     * Prints the first eight tab-delimited fields of a VCF record for this
+     * marker (the CHROM, POS, ID, REF, ALT, QUAL, FILTER, and INFO fields)
+     * to the specified {@code PrintWriter}.  The specified INFO/AN and
+     * INFO/AC fields will be added to the beginning of the VCF INFO field.
+     * If the INFO/AN or iNFO/AC fields exist in {@code this.info()}, the
+     * existing INFO/AN or INFO/AC field will be deleted.
+     *
+     * @param marker a marker storing the first 8 VCF fields
+     * @param an the total number of alleles in called genotypes
+     * @param alleleCounts an array of length {@code this.nAlleles()} whose
+     * {@code k-th} entry is the allele count in called genotypes
+     * for the {@code k}-th allele
+     * @param out the object to which the marker fields will be printed
+     * @throws IllegalArgumentException if
+     * {@code (this.nAlleles() != alleleCounts.length)}
+     * @throws NullPointerException if
+     * {@code ((alleleCounts == null)) || (out == null)}
+     */
+    public static void printFirst8Fields(Marker marker, int an,
+            int[] alleleCounts, PrintWriter out) {
+        out.print(marker.chromID());
+        out.print('\t');
+        out.print(marker.pos());
+        out.print('\t');
+        String fields = marker.fields();
+        int lastTabP1 = fields.lastIndexOf(Const.tab) + 1;
+        out.write(fields, 0, lastTabP1);
+        printInfo(marker, an, alleleCounts, out);
+    }
+
+    private static void printInfo(Marker marker, int an, int[] alleleCounts, PrintWriter out) {
+        if (marker.nAlleles()!=alleleCounts.length) {
+            throw new IllegalArgumentException(Arrays.toString(alleleCounts));
+        }
+        printCounts(an, alleleCounts, out);
+        String info = marker.info();
+        int start = 0;
+        while (start<info.length()) {
+            int end = info.indexOf(';', start);
+            if (end==-1) {
+                end = info.length();
+            }
+            if (start<end) {
+                String field = info.substring(start, end).trim();
+                if (field.length()>0
+                        && field.equals(".") == false
+                        && field.startsWith("AN=")==false
+                        && field.startsWith("AC=")==false) {
+                    out.print(';');
+                    out.print(field);
+                }
+            }
+            start = end + 1;
+        }
+    }
+
+    private static void printCounts(int an, int[] alleleCounts, PrintWriter out) {
+        out.print("AN=");
+        out.print(an);
+        out.print(";AC=");
+        for (int j=1; j<alleleCounts.length; ++j) {   // begin with first ALT allele
+            if (j>1){
+                out.append(',');
+            }
+            out.print(alleleCounts[j]);
+        }
+    }
 }

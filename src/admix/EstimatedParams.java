@@ -27,7 +27,7 @@ package admix;
  */
 public class EstimatedParams implements ParamsInterface {
 
-    private final FixedParams fixedParams;
+    private final SampleData sampleData;
     private final double t;                    // gen since admixture
     private final double[] mu;                 // ancestry proportions
     private final double[][] theta;            // miscopy probability matrix
@@ -35,30 +35,26 @@ public class EstimatedParams implements ParamsInterface {
     private final double[] rho;                // population switch probabilities
 
     /**
-     * Constructs a new {@code EstimatedParams} instance with the specified
-     * data. The {@code theta} and {@code minP} parameters are set equal
-     * to {@code initParams.theta()} and {@code initParams.minP()} respectively.
-     * Other parameters are obtained from the specified {@code estimatedParams}
-     * object.  The specified {@code ParamEstimateData} object is not modified
+     * Constructs a new {@code EstimatedParams} instance from the specified
+     * data.  The specified {@code ParamData} object is not modified
      * by this method.
-     * @param estimatedParams the estimated parameter values
-     * @param initParams the initial parameters
-     * @throws NullPointerException if
-     * {@code (estimatedParams == null) || (initParams == null)}
+     * @param paramData the estimated parameter values
+     * @throws NullPointerException if {@code (paramData == null)}
      */
-    public EstimatedParams(ParamEstimateData estimatedParams,
-            ParamsInterface initParams) {
-        this.fixedParams = initParams.fixedParams();
-        this.t = estimatedParams.t();
-        this.mu = estimatedParams.mu();
-        this.p = initParams.p();
-        this.theta = initParams.theta();
-        this.rho = initParams.rho();
+    public EstimatedParams(ParamEstimateData paramData) {
+        ParamsInterface prevParams = paramData.prevParams();
+        AdmixPar par = prevParams.sampleData().par();
+        this.sampleData = prevParams.sampleData();
+        this.t = paramData.t();
+        this.mu = paramData.mu();
+        this.p = par.update_p() ? paramData.p() : prevParams.p();
+        this.theta = prevParams.theta();
+        this.rho = par.update_p() ? paramData.rho() : prevParams.rho();
     }
 
     @Override
-    public FixedParams fixedParams() {
-        return fixedParams;
+    public SampleData sampleData() {
+        return sampleData;
     }
 
     @Override

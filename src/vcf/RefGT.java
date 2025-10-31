@@ -50,7 +50,7 @@ public class RefGT implements GT {
         long sumLength1 = 0;
         IntArray[] lastMaps = new IntArray[2];
         for (RefGTRec rec : recs) {
-            if (rec.isAlleleCoded()) {
+            if (rec.isAlleleRecord()) {
                 ++alleleCodedCnt;
                 alleleCodedBytes += rec.estBytes();
             }

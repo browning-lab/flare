@@ -19,10 +19,9 @@ package vcf;
 
 import blbutil.BlockLineReader;
 import blbutil.FileIt;
-import blbutil.Filter;
-import blbutil.SampleFileIt;
+import blbutil.Utilities;
+import blbutil.VcfFileIt;
 import bref.SeqCoder3;
-import java.io.File;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,6 +29,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * <p>Class {@code RefIt} represents  an iterator whose {@code next()}
@@ -44,7 +44,7 @@ import java.util.function.Function;
  *
  * @author Brian L. Browning {@code <browning@uw.edu>}
  */
-public class RefIt implements SampleFileIt<RefGTRec> {
+public class RefIt implements VcfFileIt<RefGTRec> {
 
     /**
      * The default number of {@code GTRec} objects that are
@@ -54,7 +54,7 @@ public class RefIt implements SampleFileIt<RefGTRec> {
 
     private final VcfHeader vcfHeader;
     private final Function<String, RefGTRec> mapper;
-    private final Filter<Marker> markerFilter;
+    private final Predicate<Marker> markerFilter;
 
     private final BlockLineReader reader;
     private final List<RefGTRec> lowFreqBuffer;
@@ -75,8 +75,8 @@ public class RefIt implements SampleFileIt<RefGTRec> {
      * @throws NullPointerException if {@code it == null}
      */
     public static RefIt create(FileIt<String> it) {
-        return RefIt.create(it, Filter.acceptAllFilter(),
-                Filter.acceptAllFilter(), DEFAULT_BUFFER_SIZE);
+        return RefIt.create(it, FilterUtil.acceptAllPredicate(),
+                FilterUtil.acceptAllPredicate(), false, DEFAULT_BUFFER_SIZE);
     }
 
     /**
@@ -91,9 +91,10 @@ public class RefIt implements SampleFileIt<RefGTRec> {
      * @throws IllegalArgumentException if {@code bufferSize < 1}
      * @throws NullPointerException if {@code it == null}
      */
-    public static RefIt create(FileIt<String> it, Filter<String> sampleFilter,
-            Filter<Marker> markerFilter) {
-        return new RefIt(it, sampleFilter, markerFilter, DEFAULT_BUFFER_SIZE);
+    public static RefIt create(FileIt<String> it, Predicate<String> sampleFilter,
+            Predicate<Marker> markerFilter) {
+        return new RefIt(it, sampleFilter, markerFilter, false,
+                DEFAULT_BUFFER_SIZE);
     }
 
     /**
@@ -102,6 +103,8 @@ public class RefIt implements SampleFileIt<RefGTRec> {
      * @param it an iterator that returns lines of a VCF file
      * @param sampleFilter a sample filter or {@code null}
      * @param markerFilter a marker filter or {@code null}
+     * @param stripOptionalFields {@code true} if the VCF record's ID,
+     * QUAL, FILTER, and INFO subfields should be discarded
      * @param bufferSize the number of VCF records stored in a buffer
      * @return a new {@code RefIt} instance
      * @throws IllegalArgumentException if a format error is detected in a
@@ -109,29 +112,30 @@ public class RefIt implements SampleFileIt<RefGTRec> {
      * @throws IllegalArgumentException if {@code bufferSize < 1}
      * @throws NullPointerException if {@code it == null}
      */
-    public static RefIt create(FileIt<String> it, Filter<String> sampleFilter,
-            Filter<Marker> markerFilter, int bufferSize) {
-        return new RefIt(it, sampleFilter, markerFilter, bufferSize);
+    public static RefIt create(FileIt<String> it, Predicate<String> sampleFilter,
+            Predicate<Marker> markerFilter, boolean stripOptionalFields,
+            int bufferSize) {
+        return new RefIt(it, sampleFilter, markerFilter, stripOptionalFields,
+                bufferSize);
     }
 
-    private RefIt(FileIt<String> it, Filter<String> sampleFilter,
-            Filter<Marker> markerFilter, int blockSize) {
+    private RefIt(FileIt<String> it, Predicate<String> sampleFilter,
+            Predicate<Marker> markerFilter, boolean stripOptionalFields, int blockSize) {
         if (blockSize < 1) {
             throw new IllegalArgumentException(String.valueOf(blockSize));
         }
         if (markerFilter==null) {
-            markerFilter = Filter.acceptAllFilter();
+            markerFilter = FilterUtil.acceptAllPredicate();
         }
-        String src = it.file()==null ? "stdin" : it.file().getName();
-        String[] head = VcfIt.head(src, it);
-        String[] nonDataLines = Arrays.copyOf(head, head.length-1);
-        String firstDataLine = head[head.length-1];
+        String[] vcfHeaderLines = VcfHeader.readVcfHeader(it).toArray(String[]::new);
+        String firstDataLine = it.hasNext() ? it.next() : null;
+        if (firstDataLine==null) {
+            throw new IllegalArgumentException("Missing VCF data lines (" + it.source() + ")");
+        }
         boolean[] isDiploid = VcfHeader.isDiploid(firstDataLine);
-        boolean storeId = true;
-        VcfFieldFilter filter = new VcfFieldFilter(storeId, false, false, false);
-        this.vcfHeader = new VcfHeader(src, nonDataLines, isDiploid, sampleFilter);
+        this.vcfHeader = new VcfHeader(it.source(), vcfHeaderLines, isDiploid, sampleFilter);
         this.mapper = (String s) -> {
-            return RefGTRec.alleleRefGTRec(new VcfRecGTParser(vcfHeader, s, filter));
+            return RefGTRec.alleleRefGTRec(new VcfRecGTParser(vcfHeader, s, stripOptionalFields));
         } ;
         this.markerFilter = markerFilter;
         this.seqCoder = new SeqCoder3(vcfHeader.samples());
@@ -204,11 +208,18 @@ public class RefIt implements SampleFileIt<RefGTRec> {
     }
 
     private RefGTRec[] parseLines(String[] lines) {
-        return Arrays.stream(lines)
-                .parallel()
-                .map(mapper)
-                .filter(e -> markerFilter.accept(e.marker()))
-                .toArray(RefGTRec[]::new);
+        RefGTRec[] recs = null;
+        try {
+            recs = Arrays.stream(lines)
+                    .parallel()
+                    .map(mapper)
+                    .filter(e -> markerFilter.test(e.marker()))
+                    .toArray(RefGTRec[]::new);
+        }
+        catch (Throwable t) {
+            Utilities.exit(t);
+        }
+        return recs;
     }
 
     private void flushCompressedRecords() {
@@ -268,8 +279,8 @@ public class RefIt implements SampleFileIt<RefGTRec> {
     }
 
     @Override
-    public File file() {
-        return reader.file();
+    public String source() {
+        return reader.source();
     }
 
     @Override
@@ -278,28 +289,32 @@ public class RefIt implements SampleFileIt<RefGTRec> {
     }
 
     @Override
+    public VcfHeader vcfHeader() {
+        return vcfHeader;
+    }
+
+    @Override
     public String toString() {
-        File file = reader.file();
         StringBuilder sb = new StringBuilder(80);
         sb.append(this.getClass().toString());
         sb.append(" : ");
-        sb.append(file==null ? "stdin" : file.toString());
+        sb.append(reader.source());
         return sb.toString();
     }
 
     private boolean applySeqCoding(RefGTRec rec) {
-        assert rec.isAlleleCoded();
+        assert rec.isAlleleRecord();
         if (rec.marker().nAlleles() > maxSeqCodedAlleles) {
             return false;
         }
         int nHaps = rec.size();
-        int majAllele = rec.majorAllele();
-        int majCnt = nHaps;
+        int nullRow = rec.nullRow();
+        int nullRowCnt = nHaps;
         for (int a=0, n=rec.marker().nAlleles(); a<n; ++a) {
-            if (a!=majAllele) {
-                majCnt -= rec.alleleCount(a);
+            if (a!=nullRow) {
+                nullRowCnt -= rec.alleleCount(a);
             }
         }
-        return majCnt<=maxSeqCodingMajorCnt;
+        return nullRowCnt<=maxSeqCodingMajorCnt;
     }
 }

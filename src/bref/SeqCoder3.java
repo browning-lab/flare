@@ -26,7 +26,7 @@ import java.util.List;
 import vcf.Marker;
 import vcf.RefGTRec;
 import vcf.Samples;
-import vcf.HapRefGTRec;
+import vcf.MapRefGTRec;
 
 /**
  * <p>Class {@code SeqCoder3} compresses a sequence of allele-coded
@@ -164,18 +164,18 @@ public class SeqCoder3 {
         if (rec.samples().equals(samples)==false) {
             throw new IllegalArgumentException("inconsistent samples");
         }
-        if (rec.isAlleleCoded()==false) {
+        if (rec.isAlleleRecord()==false) {
             throw new IllegalArgumentException(rec.getClass().toString());
         }
         boolean success = setAlleleMap(rec);
         if (success) {
             recs.add(rec);
-            int majorAllele = rec.majorAllele();
+            int nullRow = rec.nullRow();
             for (int a=0, n=rec.marker().nAlleles(); a<n; ++a) {
-                if (a!=majorAllele) {
+                if (a!=nullRow) {
                     int nCopies = rec.alleleCount(a);
                     for (int c=0; c<nCopies; ++c) {
-                        int h = rec.hapIndex(a, c);
+                        int h = rec.nonNullRowHap(a, c);
                         int oldSeq = hap2Seq[h];
                         IntList list = seq2AlleleSeqMap.get(oldSeq);
                         int index=0;
@@ -211,12 +211,12 @@ public class SeqCoder3 {
         int[] seq2NonMajorCnt = new int[nStartSeq];
         clearSeq2AlleleMap();
         int nAlleles = rec.marker().nAlleles();
-        int majorAllele = rec.majorAllele();
+        int nullRow = rec.nullRow();
         for (int a=0; a<nAlleles; ++a) {
-            if (a!=majorAllele) {
+            if (a!=nullRow) {
                 int nCopies = rec.alleleCount(a);
                 for (int c=0; c<nCopies; ++c) {
-                    int h = rec.hapIndex(a, c);
+                    int h = rec.nonNullRowHap(a, c);
                     int seq = hap2Seq[h];
                     ++seq2NonMajorCnt[seq];
                     IntList list = seq2AlleleSeqMap.get(seq);
@@ -238,8 +238,8 @@ public class SeqCoder3 {
                 }
             }
         }
-        addMajorAllele(seq2NonMajorCnt, majorAllele);
-        if (seq2AlleleSeqMap.size() >= maxNSeq) {
+        addMajorAllele(seq2NonMajorCnt, nullRow);
+        if (seq2AlleleSeqMap.size() > maxNSeq) {
             seq2AlleleSeqMap.subList(nStartSeq, seq2AlleleSeqMap.size()).clear();
             return false;
         }
@@ -248,20 +248,20 @@ public class SeqCoder3 {
         }
     }
 
-    private void addMajorAllele(int[] seq2NonMajorCnt, int majorAllele) {
-        for (int seq=0; seq<seq2NonMajorCnt.length; ++seq) {
-            if (seq2NonMajorCnt[seq] < seq2Cnt.get(seq)) {
+    private void addMajorAllele(int[] seq2NonNullRowCnt, int nullRowAllele) {
+        for (int seq=0; seq<seq2NonNullRowCnt.length; ++seq) {
+            if (seq2NonNullRowCnt[seq] < seq2Cnt.get(seq)) {
                 IntList list = seq2AlleleSeqMap.get(seq);
                 if (list.isEmpty()) {
-                    list.add(majorAllele);
+                    list.add(nullRowAllele);
                     list.add(seq);
                 }
                 else {
-                    // assign major allele the existing sequence index
+                    // assign nullRow allele the existing sequence index
                     list.add(list.get(0));
                     assert list.get(1)==seq;
                     list.add(seq2AlleleSeqMap.size());
-                    list.set(0, majorAllele);
+                    list.set(0, nullRowAllele);
                     seq2AlleleSeqMap.add(new IntList(4));
                 }
             }
@@ -285,7 +285,7 @@ public class SeqCoder3 {
             RefGTRec rec = recs.get(j);
             Marker m = rec.marker();
             IntArray seq2allele = seq2Allele(rec, seq2Hap);
-            list.add(new HapRefGTRec(m, samples, hap2seq, seq2allele));
+            list.add(new MapRefGTRec(m, samples, hap2seq, seq2allele));
         }
         initialize();
         return list;

@@ -51,7 +51,7 @@ import java.util.zip.GZIPInputStream;
  */
 public class InputIt implements FileIt<String> {
 
-    private final File file;
+    private final String source;
     private final BufferedReader in;
     private String next = null;
 
@@ -60,9 +60,13 @@ public class InputIt implements FileIt<String> {
      * size that will iterate through lines of the specified input stream.
      *
      * @param is input stream of text data
-     * @param file the file that is the source of the input stream
+     * @param source a string representation of the data source
+     * @throws NullPointerException if {@code (source == null)}
      */
-    private InputIt(InputStream is, File file) {
+    private InputIt(InputStream is, String source) {
+        if (source==null) {
+            throw new NullPointerException("source==null");
+        }
         BufferedReader br = null;
         try {
             InputStreamReader isr = new InputStreamReader(is);
@@ -70,10 +74,10 @@ public class InputIt implements FileIt<String> {
             next = br.readLine();
         }
         catch(IOException e) {
-            Utilities.exit(e, "Error reading " + file);
+            Utilities.exit(e, "Error reading " + source);
         }
         this.in = br;
-        this.file = file;
+        this.source = source;
     }
 
     /**
@@ -81,12 +85,16 @@ public class InputIt implements FileIt<String> {
      * that will iterate through the lines of the specified input stream.
      *
      * @param is input stream of text data
-     * @param file the file that is the source of the input stream
+     * @param source a string representation of the data source
      * @param bufferSize the buffer size in bytes
      *
      * @throws IllegalArgumentException if {@code bufferSize < 0}
+     * @throws NullPointerException if {@code (source == null)}
      */
-    private InputIt(InputStream is, File file, int bufferSize) {
+    private InputIt(InputStream is, String source, int bufferSize) {
+        if (source==null) {
+            throw new NullPointerException("source==null");
+        }
         BufferedReader br = null;
         try {
             InputStreamReader isr = new InputStreamReader(is);
@@ -94,15 +102,15 @@ public class InputIt implements FileIt<String> {
             next = br.readLine();
         }
         catch(IOException e) {
-            Utilities.exit(e, "Error reading " + file);
+            Utilities.exit(e, "Error reading " + source);
         }
         this.in = br;
-        this.file = file;
+        this.source = source;
     }
 
     @Override
-    public File file() {
-        return file;
+    public String source() {
+        return source;
     }
 
     /**
@@ -129,7 +137,7 @@ public class InputIt implements FileIt<String> {
             next = in.readLine();
         }
         catch (IOException e) {
-            Utilities.exit(e, "Error reading " + file);
+            Utilities.exit(e, "Error reading " + source);
         }
         return current;
     }
@@ -163,8 +171,8 @@ public class InputIt implements FileIt<String> {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder(200);
-        sb.append("[file= ");
-        sb.append(file);
+        sb.append("[source= ");
+        sb.append(source);
         sb.append("; next=\"");
         sb.append(next);
         sb.append("\"]");
@@ -179,8 +187,7 @@ public class InputIt implements FileIt<String> {
      * through lines of text read from standard input
      */
     public static InputIt fromStdIn() {
-        File file = null;
-        return new InputIt(System.in, file);
+        return new InputIt(System.in, "stdin");
     }
 
     /**
@@ -194,7 +201,7 @@ public class InputIt implements FileIt<String> {
      * @return {@code FileIt<String>} instance that iterates through the
      * lines of the specified file
      *
-     * @throws NullPointerException if {@code file == null}
+     * @throws NullPointerException if {@code (file == null)}
      */
     public static FileIt<String> fromBGZipFile(File file, int nBufferedBlocks) {
         String filename = file.getName();
@@ -203,14 +210,14 @@ public class InputIt implements FileIt<String> {
             BufferedInputStream bis = new BufferedInputStream(is);
             if (filename.endsWith(".gz") || filename.endsWith(".bgz")) {
                 if (BGZipIt.beginsWithBgzipBlock(bis)) {
-                    return new BGZipIt(bis, nBufferedBlocks, file);
+                    return new BGZipIt(bis, nBufferedBlocks, filename);
                 }
                 else {
-                    return new InputIt(new GZIPInputStream(bis), file);
+                    return new InputIt(new GZIPInputStream(bis), filename);
                 }
             }
             else {
-                return new InputIt(is, file);
+                return new InputIt(is, filename);
             }
         }
         catch(FileNotFoundException e) {
@@ -226,23 +233,24 @@ public class InputIt implements FileIt<String> {
     /**
      * Constructs and returns a buffered {@code InputIt} instance that
      * iterates through lines of the specified compressed or uncompressed
-     * text file. If the filename ends in ".gz", the file must be
-     * tGZIP-compressed.
+     * text file. If the filename ends in ".gz" or ".bgz", the file must be
+     * GZIP-compressed. The Java virtual machine will exit with an
+     * error message if an I/O error is encountered.
      *
      * @param file a compressed or uncompressed text file
      * @return  a buffered {@code InputIt} instance that iterates
      * through lines of the specified text file
-     * @throws NullPointerException if {@code file == null}
+     * @throws NullPointerException if {@code (file == null)}
      */
     public static InputIt fromGzipFile(File file) {
         String filename = file.getName();
         try {
             InputStream is = new FileInputStream(file);
             if (filename.endsWith(".gz") || filename.endsWith(".bgz")) {
-                return new InputIt(new GZIPInputStream(is), file);
+                return new InputIt(new GZIPInputStream(is), filename);
             }
             else {
-                return new InputIt(is, file);
+                return new InputIt(is, filename);
             }
         }
         catch(FileNotFoundException e) {
@@ -262,14 +270,15 @@ public class InputIt implements FileIt<String> {
      * @param file a text file
      * @return a buffered {@code InputIt} instance that iterates through
      * lines of the specified text file
-     * @throws NullPointerException if {@code filename == null}
+     * @throws NullPointerException if {@code (filename == null)}
      */
     public static InputIt fromTextFile(File file) {
+        String filename = file.getName();
         try {
-            return new InputIt(new FileInputStream(file), file);
+            return new InputIt(new FileInputStream(file), filename);
         }
         catch(FileNotFoundException e) {
-            Utilities.exit(e, "Error opening " + file);
+            Utilities.exit(e, "Error opening " + filename);
         }
         assert false;
         return null;

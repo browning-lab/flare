@@ -17,6 +17,8 @@
  */
 package admix;
 
+import java.util.stream.IntStream;
+
 /**
  * <p>Class {@code PartiallyUpdatedParams} represents partially updated
  * analysis parameters for a local ancestry inference analysis.
@@ -27,7 +29,7 @@ package admix;
  */
 public class PartiallyUpdatedParams implements ParamsInterface {
 
-    private final FixedParams fixedParams;
+    private final SampleData sampleData;
     private final double t;                    // gen since admixture
     private final double[] mu;                 // ancestry proportions
     private final double[][] theta;            // miscopy probability matrix
@@ -36,74 +38,60 @@ public class PartiallyUpdatedParams implements ParamsInterface {
 
     /**
      * Constructs a new {@code PartiallyUpdatedParams} instance for the
-     * specified data. The constructed {@code PartiallyUpdatedParams} object
-     * will have the same parameter values as the specified {@code baseParams}
-     * object, except for its {@code p()} and {@code rho()} parameters.
-     * The {@code i}-th elements the constructed object's {@code p()} and
-     * {@code rho()} parameters are obtained from {@code paramEstimates[i]}.
-     * @param paramEstimates a list with estimated parameter values
+     * specified data. The {@code i}-th element of the constructed
+     * object's {@code p()} and {@code rho()} parameters are obtained
+     * from {@code paramData[i]}.  The constructed object's {@code T()},
+     * {@code mu()}, and {@code theta()} parameters are obtained from
+     * {@code sampleData.par().gen()},
+     * {@code ParamsInterface.defaultMu(sampleData.nAnc())},
+     * and {@code ParamsInterface.defaultTheta(sampleData)} respectively.
+     * @param sampleData reference and target sample metadata
+     * @param paramData a list with estimated parameter values
      * for each ancestry
-     * @param baseParams the base parameter values
      * @throws IllegalArgumentException if
-     * {@code paramEstimates.length != baseParams.fixedParams().nAnc()}
+     * {@code (paramData.length != sampleData.nAnc())}
      * @throws IllegalArgumentException if there exists {@code i} such that
-     * {@code (0 <= i) && (i < baseParams.fixedParams().nAnc())
-     * && (paramEstimates[i].prevParams().fixedParams() != baseParams.fixedParams())}
+     * {@code ((0 <= i) && (i < paramData.length)
+     * && (paramData[i].prevParams().sampleData() != sampleData))}
      * @throws NullPointerException if
-     * {@code (paramEstimates == null) || (baseParams == null)}
+     * {@code ((sampleData == null) || (paramData == null)) }
      * @throws NullPointerException if there exists {@code i} such that
-     * {@code (0 <= i) && (i < baseParams.fixedParams().nAnc())
-     * && (paramEstimates[i] == null)}
+     * {@code ((0 <= i) && (i < paramData.length) && (paramData[i] == null))}
      */
-    public PartiallyUpdatedParams(ParamEstimateData[] paramEstimates,
-            ParamsInterface baseParams) {
-        checkParameters(paramEstimates, baseParams);
-        ParamsInterface params = baseParams;
-        this.fixedParams = params.fixedParams();
-        this.t = baseParams.T();
-        this.mu = baseParams.studyMu();
-        this.p = updatedP(fixedParams, paramEstimates);
-        this.theta = baseParams.theta();
-        this.rho = updatedRho(fixedParams, paramEstimates);
+    public PartiallyUpdatedParams(SampleData sampleData,
+            ParamEstimateData[] paramData) {
+        checkParameters(sampleData, paramData);
+        int nAnc = sampleData.nAnc();
+        this.sampleData = sampleData;
+        this.t = sampleData.par().gen();
+        this.mu = ParamsInterface.defaultMu(nAnc);
+        this.theta = ParamsInterface.defaultTheta(sampleData);
+        this.p = IntStream.range(0, nAnc)
+                .mapToObj(i -> paramData[i].p()[i])
+                .toArray(double[][]::new);
+        this.rho = IntStream.range(0, nAnc)
+                .mapToDouble(i -> paramData[i].rho()[i])
+                .toArray();
+
     }
 
-    private static  void checkParameters(ParamEstimateData[] paramEstimates,
-            ParamsInterface baseParams) {
-        FixedParams fixedParams = baseParams.fixedParams();
-        int nAnc = fixedParams.nAnc();
-        if (paramEstimates.length != nAnc) {
-            throw new IllegalArgumentException(String.valueOf(paramEstimates.length));
+    private static  void checkParameters(SampleData sampleData,
+            ParamEstimateData[] paramData) {
+        int nAnc = sampleData.nAnc();
+        if (paramData.length != nAnc) {
+            throw new IllegalArgumentException(String.valueOf(paramData.length));
         }
-        for (int i=0; i<paramEstimates.length; ++i) {
-            if (paramEstimates[i].prevParams().fixedParams() != fixedParams) {
+        for (int i=0; i<paramData.length; ++i) {
+            if (paramData[i].prevParams().sampleData() != sampleData) {
                 String msg = "inconsistent parameters for ancestry " + i;
                 throw new IllegalArgumentException(msg);
             }
         }
     }
 
-    private static double[][] updatedP(FixedParams fixedParams,
-            ParamEstimateData[] estimatedParams) {
-        double[][] updatedP = new double[fixedParams.nAnc()][fixedParams.nRefPanels()];
-        for (int i=0; i<updatedP.length; ++i) {
-            updatedP[i] = estimatedParams[i].p()[i];
-        }
-        return updatedP;
-    }
-
-
-    private static double[] updatedRho(FixedParams fixedParams,
-            ParamEstimateData[] estimatedParams) {
-        double[] updatedRho = new double[fixedParams.nAnc()];
-        for (int i=0; i<updatedRho.length; ++i) {
-            updatedRho[i] = estimatedParams[i].rho()[i];
-        }
-        return updatedRho;
-    }
-
     @Override
-    public FixedParams fixedParams() {
-        return fixedParams;
+    public SampleData sampleData() {
+        return sampleData;
     }
 
     @Override

@@ -38,16 +38,16 @@ public class ParamUtils {
     /**
      * Returns an array with the same size as {@code params.p()} and whose
      * {@code [i][j]}-th entry is
-     * {@code params.p()[i][j] * (1.0/params.fixedParams().nRefPanelHaps().get(j))}.
+     * {@code params.p()[i][j] * (1.0/params.sampleData().nRefPanelHaps().get(j))}.
      * @param params the parameters for a local ancestry analysis
      *
      * @return an array with the same size as {@code params.p()} and whose
      * {@code [i][j]}-th entry is
-     * {@code params.p()[i][j] * (1/params.fixedParams().nRefPanelHaps().get(j))}
+     * {@code params.p()[i][j] * (1/params.sampleData().nRefPanelHaps().get(j))}
      * @throws NullPointerException if {@code  params == null}
      */
     public static double[][] q(ParamsInterface params) {
-        IntArray nPanelHaps = params.fixedParams().nPanelHaps();
+        IntArray nPanelHaps = params.sampleData().nPanelHaps();
         double[][] modP = params.p();
         double[] invNPanelHaps = new double[nPanelHaps.size()];
         for (int j=0, n=nPanelHaps.size(); j<n; ++j) {
@@ -66,7 +66,7 @@ public class ParamUtils {
      * the matrix product of {@code ParamUtils.q(params)}
      * and {@code params.mu()}.
      * The {@code (i, j)}-th element of the returned array is
-     * {@code params.mu()[i]*params.p()[i][j]/params.fixedParams().nPanelHaps()[j]}
+     * {@code params.mu()[i]*params.p()[i][j]/params.sampleData().nPanelHaps()[j]}
      * @param params the parameters for a local ancestry analysis
      *
      * @return a two-dimensional array obtained that is obtained by taking
@@ -75,7 +75,7 @@ public class ParamUtils {
      * @throws NullPointerException if {@code params == null}
      */
    public  static double[][] qMu(ParamsInterface params) {
-        IntArray nPanelHaps = params.fixedParams().nPanelHaps();
+        IntArray nPanelHaps = params.sampleData().nPanelHaps();
         double[][] modP = params.p();
         double[] mu = params.studyMu();
         double[] invNPanelHaps = new double[nPanelHaps.size()];
@@ -103,7 +103,7 @@ public class ParamUtils {
      */
     public static double[][] inv1Mq(ParamsInterface params) {
         double[][] modP = params.p();
-        IntArray nPanelHaps = params.fixedParams().nPanelHaps();
+        IntArray nPanelHaps = params.sampleData().nPanelHaps();
         for (int i=0; i<modP.length; ++i) {
             for (int j=0, n=nPanelHaps.size(); j<n; ++j) {
                 modP[i][j] = nPanelHaps.get(j)/(nPanelHaps.get(j) - modP[i][j]);
@@ -124,8 +124,8 @@ public class ParamUtils {
      * @throws NullPointerException if {@code params == null}
      */
     public static double[][][] pObserved(ParamsInterface params) {
-        int nAnc = params.fixedParams().nAnc();
-        int nRefPanels = params.fixedParams().nRefPanels();
+        int nAnc = params.sampleData().nAnc();
+        int nRefPanels = params.sampleData().nRefPanels();
         double[][] theta = params.theta();
         double[][][] mismatchProbs = new double[nAnc][nRefPanels][];
         for (int i=0; i<nAnc; ++i) {
@@ -149,19 +149,19 @@ public class ParamUtils {
      * @throws NullPointerException if {@code params == null}
      */
     public static String toString(ParamsInterface params) {
-        FixedParams fixedParams = params.fixedParams();
+        SampleData sampleData = params.sampleData();
         StringBuilder sb = new StringBuilder(1<<9);
         sb.append("# list of ancestries");
-        for (int i=0, n=fixedParams.nAnc(); i<n; ++i) {
+        for (int i=0, n=sampleData.nAnc(); i<n; ++i) {
             sb.append(i==0 ? Const.nl : Const.tab);
-            sb.append(fixedParams.ancId(i));
+            sb.append(sampleData.ancId(i));
         }
         sb.append(Const.nl);
         sb.append(Const.nl);
         sb.append("# list of reference panels");
-        for (int j=0, n=fixedParams.nRefPanels(); j<n; ++j) {
+        for (int j=0, n=sampleData.nRefPanels(); j<n; ++j) {
             sb.append(j==0 ? Const.nl : Const.tab);
-            sb.append(fixedParams.refPanelId(j));
+            sb.append(sampleData.refPanelId(j));
         }
         sb.append(Const.nl);
         sb.append(Const.nl);

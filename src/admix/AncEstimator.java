@@ -52,7 +52,7 @@ public final class AncEstimator {
      */
     public static void estAncestry(ParamsInterface params, IbsHaps ibsHaps,
             EstimatedGlobalAncProportions globalAncProbs, AdmixWriter admixWriter) {
-        if (params.fixedParams().par() != admixWriter.par()) {
+        if (params.sampleData().par() != admixWriter.par()) {
             throw new IllegalArgumentException("inconsistent data");
         }
         EstimatedAncestry estAnc = estAncestry(params, ibsHaps, globalAncProbs);
@@ -65,7 +65,7 @@ public final class AncEstimator {
         int nTargHaps = ibsHaps.chromData().nTargHaps();
         EstimatedAncestry estAnc = new EstimatedAncestry(data, globalAncProbs);
         AtomicInteger index = new AtomicInteger(0);
-        int nThreads = params.fixedParams().par().nthreads();
+        int nThreads = params.sampleData().par().nthreads();
         ExecutorService es = Executors.newFixedThreadPool(nThreads);
         for (int j=0; j<nThreads; ++j) {
             es.submit(() -> {

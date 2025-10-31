@@ -17,13 +17,12 @@
  */
 package vcf;
 
-import beagleutil.ChromInterval;
-import blbutil.Filter;
 import blbutil.Utilities;
 import java.io.File;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Class {@code FilterUtil} contains static methods for constructing
@@ -35,6 +34,159 @@ public final class FilterUtil {
 
     private FilterUtil() {
         // private constructor to prevent instantiation
+    }
+
+    /**
+     * Returns a predicate that accepts all non-null objects.
+     * @param <E> the type of object that is filtered
+     * @return a filter that accepts all non-null objects
+     */
+    public static <E> Predicate<E> acceptAllPredicate() {
+        return (E e) -> {
+            if (e == null) {
+                throw new NullPointerException("e==null");
+            }
+            return true;
+        };
+    }
+
+   /**
+     * <p>Returns a predicate that accepts all strings that are not contained
+     * in the specified file, and returns a predicate that accepts all
+     * strings if {@code (file == null)}. Blank lines in the file are ignored,
+     * and each line in the file will be trimmed to eliminate beginning
+     * and ending white-space. The returned predicate will throw
+     * a {@code NullPointerException} if its {@code test()} method is
+     * invoked on a null reference</p>
+     *
+     * <p>If an {@code IOException} is thrown while accessing the specified
+     * file, an error message will be printed to standard error and the
+     * Java virtual machine will terminate.</p>
+     *
+     * @param file a text file with one identifier per line
+     * @return a predicate that rejects all non-null objects that are not
+     * contained in the specified file
+     * @throws IllegalArgumentException if the specified file does not exist
+     * @throws IllegalArgumentException if the specified file is a directory
+     * @throws IllegalArgumentException if any line of the specified
+     * file contains two non-white-space characters separated by one or
+     * more white-space characters
+     */
+    public static Predicate<String> includePredicate(File file) {
+        if (file==null) {
+            return acceptAllPredicate();
+        }
+        final HashSet<String> includeSet = Utilities.idSet(file);
+        return (String str) -> {
+            if (str == null) {
+                throw new NullPointerException("e==null");
+            }
+            return includeSet.contains(str);
+        };
+    }
+
+    /**
+     * <p>Returns a predicate that rejects all strings that are not contained
+     * in the specified file, and returns a predicate that accepts all
+     * strings if {@code (file == null)}. Blank lines in the file are ignored,
+     * and each line in the file will be trimmed to eliminate beginning
+     * and ending white-space. The returned predicate will throw
+     * a {@code NullPointerException} if its {@code test()} method is
+     * invoked on a null reference</p>
+     *
+     * <p>If an {@code IOException} is thrown while accessing the specified
+     * file, an error message will be printed to standard error and the
+     * Java virtual machine will terminate.</p>
+     *
+     * @param file a text file with one identifier per line
+     * @return a predicate that rejects all non-null objects that are not
+     * contained in the specified file
+     * @throws IllegalArgumentException if the specified file does not exist
+     * @throws IllegalArgumentException if the specified file is a directory
+     * @throws IllegalArgumentException if any line of the specified
+     * file contains two non-white-space characters separated by one or
+     * more white-space characters
+     */
+    public static Predicate<String> excludePredicate(File file) {
+        if (file==null) {
+            return acceptAllPredicate();
+        }
+        final HashSet<String> excludeSet = Utilities.idSet(file);
+        return (String str) -> {
+            if (str == null) {
+                throw new NullPointerException("e==null");
+            }
+            return excludeSet.contains(str)==false;
+        };
+    }
+
+    /**
+     * Returns a predicate that accepts all non-null objects that are
+     * contained in the specified collection.
+     * @param <E> the type of object that is filtered
+     * @param include the collection of objects that will be accepted by
+     * the filter
+     * @return a predicate that accepts all non-null objects that are
+     * contained in the specified collection
+     * @throws NullPointerException if {@code include == null}
+     */
+    public static <E> Predicate<E> includePredicate(Collection<E> include) {
+        final HashSet<E> includeSet = new HashSet<>(include);
+        return (E e) -> {
+            if (e == null) {
+                throw new NullPointerException("e==null");
+            }
+            return includeSet.contains(e);
+        };
+    }
+
+    /**
+     * Returns a predicate that accepts all non-null objects that are not
+     * contained in the specified collection.
+     * @param <E> the type of object that is filtered
+     * @param exclude the collection of objects that will be rejected
+     * by the filter
+     * @return a predicate that accepts all non-null objects that are not
+     * contained in the specified collection
+     * @throws NullPointerException if {@code exclude == null}
+     */
+    public static <E> Predicate<E> excludePredicate(Collection<E> exclude) {
+        final HashSet<E> excludeSet = new HashSet<>(exclude);
+        return (E e) -> {
+            if (e == null) {
+                throw new NullPointerException("e==null");
+            }
+            return excludeSet.contains(e)==false;
+        };
+    }
+
+    /**
+     * Returns a filter that accepts all non-null objects that are contained
+     * in the specified {@code include} collection and that are not in the
+     * contained in the specified {@code exclude} collection.
+     * @param <E> the type of object that is filtered.
+     * @param include the collection of elements that may be accepted
+     * by the filter.
+     * @param exclude the collection of elements that will be rejected
+     * by the filter.
+     * @return a filter that accepts all non-null objects that are contained
+     * in the specified {@code include} collection and that are not in the
+     * contained in the specified {@code exclude} collection.
+     * @throws NullPointerException if {@code ((include==null) || (exclude==null))}
+     */
+    public static <E> Predicate<E> includeExcludePredicate(
+            final Collection<E> include, final Collection<E> exclude) {
+        final Set<E> includeSet = new HashSet<>(include);
+        final Set<E> excludeSet = new HashSet<>(exclude);
+        return new Predicate<E>() {
+            @Override
+            public boolean test(E e) {
+                if (e==null) {
+                    throw new NullPointerException("e==null");
+                }
+                return includeSet.contains(e) && !excludeSet.contains(e);
+            }
+        };
     }
 
     /**
@@ -56,106 +208,26 @@ public final class FilterUtil {
      * file contains two non-white-space characters separated by one or
      * more white-space characters
      */
-    public static Filter<Marker> markerFilter(File excludeMarkersFile) {
+    public static Predicate<Marker> markerFilter(File excludeMarkersFile) {
         Set<String> excludeIds;
         if (excludeMarkersFile==null) {
-            return Filter.acceptAllFilter();
+            return FilterUtil.acceptAllPredicate();
         }
         else {
             excludeIds = Utilities.idSet(excludeMarkersFile);
-            return excludeIdFilter(excludeIds);
-        }
-    }
-
-    /**
-     * Returns a filter that excludes markers that are not contained in
-     * the specified chromosome interval, or returns a filter that accepts
-     * all markers if the {@code chromInterval} parameter is {@code null}.
-     * @param chromInterval a chromosome interval or {@code null}
-     * @return a filter that excludes markers that are not contained in
-     * the specified chromosome interval
-     */
-    public static Filter<Marker> chromIntFilter(ChromInterval chromInterval) {
-        if (chromInterval==null) {
-            return Filter.acceptAllFilter();
-        }
-        else {
-            return (Marker marker) -> chromInterval.contains(marker);
-        }
-    }
-
-    /**
-     * Returns a filter that excludes samples that have an identifier
-     * that matches a line of the specified file, or returns a filter
-     * that accepts all strings if the {@code excludeSamplesFile} parameter
-     * is {@code null}
-     * @param excludeSamplesFile a file which contains an identifier
-     * of one excluded sample on each line
-     * @return a filter that excludes samples that have an identifier
-     * that matches a line of the specified file, or {@code null} if
-     * the {@code excludeSamplesFile} parameter is {@code null}
-     *
-     * @throws IllegalArgumentException if the specified file does not exist
-     * @throws IllegalArgumentException if the specified file is a directory
-     * @throws IllegalArgumentException if any line of the specified
-     * file contains two non-white-space characters separated by one or
-     * more white-space characters
-     */
-    public static Filter<String> sampleFilter(File excludeSamplesFile) {
-        if (excludeSamplesFile==null) {
-            return Filter.acceptAllFilter();
-        }
-        else {
-           Set<String> exclude = Utilities.idSet(excludeSamplesFile);
-           return Filter.excludeFilter(exclude);
-        }
-    }
-
-    /**
-     * Returns a string filter determined by the specified parameters.
-     * The returned filter will accept all strings if
-     * {@code (sampleFile == null)}.  Otherwise, the returned filter will
-     * accept only strings found in {@code sampleFile} if
-     * {@code (includeFilter == true)} and will reject only strings found in
-     * {@code sampleFile} if {@code (includeFilter == false)}.  Each line in
-     * {@code sampleFile} can contain at most one white-space delimited field.
-
-     * @param sampleFile a file containing one string per line
-     * @param includeFilter {@code true} if the filter should accept string
-     * identifiers found in {@code sampleFile} and {@code} false if the filter
-     * should reject string identifiers found in {@code sampleFile}.
-     *
-     * @return a string filter
-     *
-     * @throws IllegalArgumentException if the specified file does not exist
-     * @throws IllegalArgumentException if the specified file is a directory
-     * @throws IllegalArgumentException if any line of the specified
-     * file contains two non-white-space characters separated by one or
-     * more white-space characters
-     */
-    public static Filter<String> sampleFilter(File sampleFile,
-            boolean includeFilter) {
-        if (sampleFile==null) {
-            return Filter.acceptAllFilter();
-        }
-        Set<String> idSet = Utilities.idSet(sampleFile);
-        if (includeFilter) {
-           return Filter.includeFilter(idSet);
-        }
-        else {
-           return Filter.excludeFilter(idSet);
+            return excludeMarkerFilter(excludeIds);
         }
     }
 
     /**
      * Returns {@code true} if the specified marker has an identifier
-     * is in the specified set, or if ("marker.chrom()" + ":" + "marker.pos()")
+     * is in the specified set, or if ("marker.chromID()" + ":" + "marker.pos()")
      * is in the specified set, and returns {@code false} otherwise.
      * @param marker a marker
      * @param set a set of marker identifiers and chromosome positions in
      * "CHROM:POS" format
      * @return {@code true} if the specified marker has an identifier
-     * is in the specified set or if ("marker.chrom()" + ":" + "marker.pos()")
+     * is in the specified set or if ("marker.chromID()" + ":" + "marker.pos()")
      * is in the specified set
      * @throws NullPointerException if {@code marker == null || set == null}
      */
@@ -166,7 +238,7 @@ public final class FilterUtil {
                 return true;
             }
         }
-        String posId = marker.chrom() + ':' + marker.pos();
+        String posId = marker.chromID() + ':' + marker.pos();
         return set.contains(posId);
     }
 
@@ -176,7 +248,7 @@ public final class FilterUtil {
      * collection.
      * A marker is excluded if {@code exclude.contains(marker.id(j)) == true}
      * for any {@code 0 <= j < marker.nIds()} or if
-     * {@code exclude.contains(marker.chrom() + ":" + marker.pos()) == true}.
+     * {@code exclude.contains(marker.chromID() + ":" + marker.pos()) == true}.
      * @param exclude a collection of marker identifiers and chromosome
      * positions in "CHROM:POS" format
      * @return a filter that accepts all markers which do not have an
@@ -184,10 +256,10 @@ public final class FilterUtil {
      * collection
      * @throws NullPointerException if {@code exclude == null}
      */
-    public static Filter<Marker> excludeIdFilter(Collection<String> exclude) {
+    public static Predicate<Marker> excludeMarkerFilter(Collection<String> exclude) {
         final Set<String> excludeSet = new HashSet<>(exclude);
         if (excludeSet.isEmpty()) {
-            return Marker -> true;
+            return marker -> true;
         }
         else {
             return (Marker marker) -> !markerIsInSet(marker, excludeSet);
