@@ -17,7 +17,7 @@ Current version: 0.6.0
   * [Other optional parameters](#other-optional-parameters)
 * [Ancestry indices](#ancestry-indices)
 * [Output files](#output-files)
-  * [Global ancestry file format](#global-ancestries-file-format)
+  * [Global ancestry file format](#global-ancestry-file-format)
   * [Model file format](#model-file-format)
 * [Running flare with multiple chromosomes](#running-flare-with-multiple-chromosomes)
 * [Running flare with small or large sample sizes](#running-flare-with-small-or-large-sample-sizes)
@@ -133,7 +133,7 @@ computation time and significantly increase the size of the output VCF file.
 * **model=[file]** where **[file]** is a whitespace-delimited file containing
 model parameters (see [**Model file format**](#model-file-format)). If the
 **model** parameter is not used, **flare** will supply a reasonable set of
-model parameters (see the [**flare** paper](#citation) for details).
+model parameters (see the [**flare** paper](#license-and-citation) for details).
 If **em=true** (the default), **flare** will estimate the number of
 generations since admixture and the proportion of genotypes with each
 ancestry and will replace the values for these two parameters
@@ -364,8 +364,8 @@ into subsets and analyze each subset of admixed samples separately (see the
 [**gt-samples**](#common-optional-parameters) parameter).  The inferred
 ancestry for a partitioned and a non-partitioned analysis will be the same if
 you specify [**em=false**](#common-optional-parameters) and use the same
-[**model**](#common-optional-parameters), [**seed**](#common-optional-parameters), and
-[**nthreads**](#common-optional-parameters) parameters for each analysis.
+[**model**](#common-optional-parameters), [**seed**](#other-optional-parameters), and
+[**nthreads**](#other-optional-parameters) parameters for each analysis.
 
 [Contents](#contents)
 
@@ -377,7 +377,7 @@ copying probabilities for each reference panel. With this approach, you would:
 1. Run **flare** with [**panel-probs=true**](#common-optional-parameters) to create a 
 **panels** file
 2. Analyze the **panels** file with the 
-[**create-model-file.py**](https://raw.githubusercontent.com/browning-lab/flare/master/src/create_model_file.py) 
+[**create_model_file.py**](https://raw.githubusercontent.com/browning-lab/flare/master/create_model_file.py) 
 python program to create an initial **model** file (see below)
 3. Run **flare** again to estimate the final model file and to estimate 
 local ancestry. For this analysis:
