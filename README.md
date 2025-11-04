@@ -5,7 +5,7 @@ The **flare** program performs local ancestry inference.
 allele in a set of admixed study samples.
 The **flare** program is fast, accurate, and memory-efficient.
 
-Last updated: October 31, 2025 \
+Last updated: November 3, 2025 \
 Current version: 0.6.0
 
 ## Contents
@@ -45,7 +45,7 @@ with the commands:
 
 ## Running flare
 
-The **flare** program requires Java version 1.11 (or a later version). Use of an
+The **flare** program requires Java version 11 (or a later version). Use of an
 earlier Java version will produce an "Unsupported Class Version" error.
 
 The command:
@@ -122,11 +122,10 @@ in cM units are available for
 ### Common optional parameters
 
 * **probs=[true/false]** specifies whether posterior ancestry probabilities
-are reported (**default: probs=false**). At each marker, the ancestry with
-the highest posterior probability for each haplotype is _always_ reported
-in the output VCF file.
-If **probs=true**, posterior probabilities for each ancestry, haplotype, and
-marker will also be reported in the output VCF file.
+are reported (**default: probs=false**). For each haplotype, the ancestry 
+with the highest posterior probability is always reported for each marker. 
+If **probs=true**, posterior probabilities for each ancestry will also be 
+reported in the output VCF file.
 Reporting posterior probabilities will modestly increase memory use and
 computation time and significantly increase the size of the output VCF file.
 
@@ -155,9 +154,9 @@ before inferring local ancestry (**default: update-p=false**).  The
 
 * **gt-samples=[file]** (or **gt-samples=^[file]**) where **[file]**
 is a text file containing one sample identifier per line.
-Only admixed study samples that are present in **[file]** (or absent from
+Only study samples that are present in **[file]** (or absent from
 **[file]** if **[file]** is preceeded by **^**) will be analyzed. If the
-**gt-samples** parameter is omitted, all admixed study samples will be included
+**gt-samples** parameter is omitted, all study samples will be included
 in the analysis. The **gt-samples** parameter filters the study samples,
 and the **ref-panel** parameter filters the reference samples.
 
@@ -216,8 +215,7 @@ can be a VCF record's CHROM and POS fields separated by a colon
 
 * **nthreads=[integer ≥ 1]** specifies the number of computational threads to
 use for the analysis. The default **nthreads** parameter is the number of
-CPU cores.  The **nthreads** parameter value is printed in the output **log**
-file.
+CPU cores.
 
 * **seed=[integer]** specifies the seed for random number generation
 (**default: seed=-99999**). Repeating an analysis with the same **seed** and
@@ -228,20 +226,20 @@ file.
 ## Ancestry indices
 
 The **flare** program obtains the list of ancestries from the input files.
-If the **model** parameter is specified, **flare** will use the list of
-of ancestries at the start of the **model** file. If the **model**
-parameter is not specified, **flare** will use the reference panel
-names in the **ref-panel** file, in the order each name first appears in the
-**ref-panel** file, as the ancestry names.
+If the [**model**](#common-optional-parameters) parameter is specified, 
+**flare** will use the list of ancestries in the **model** file. 
+If the [**model**](#common-optional-parameters) parameter is not specified, 
+the list of ancestries will be the reference panel names in the 
+**ref-panel** file in the order they appear in that file.
 
 If the **gt-ancestries** parameter is specified, the list of ancestries in the
 header line of the **gt-ancestries** file must have the same ancestries in
 the same order as the list of ancestries obtained from the **model** or
 **ref-panel** file.
 
-The index of an ancestry in the list of ancestries determines a unique,
-non-negative integer associated with each ancestry. The first ancestry in
-the list has index 0, the second ancestry in the list has index 1, and so on.
+The ancestry list determines a non-negative integer associated with each 
+ancestry. The first ancestry in the list is ancestry 0, the second ancestry 
+in the list is ancestry 1, and so on.
 
 [Contents](#contents)
 
@@ -253,23 +251,26 @@ The **flare** program produces four output files: a **log** file, a
 The output **log** file (.log) contains a summary of the analysis.
 
 The output **model** file (.model) contains the model parameters used in the
-analysis. The output model file has the same format as the optional input
-model file (see [Model file format](#model-file-format)).
+analysis. The output model file has the same format as the input
+model file  that is specified with the optional 
+[**model**](#common-optional-parameters) parameter
+(see [Model file format](#model-file-format)).
 
 The output **VCF** file (.anc.vcf.gz) contains the phased input genotypes and
 the estimated local ancestry for each allele. The most probable
-ancestry at each marker for a admixed sample's first and second haplotype
+ancestry for the alleles on a study sample's first and second haplotypes
 are reported in the **AN1** and **AN2** FORMAT subfields.
 If [**probs=true**](#common-optional-parameters), the posterior
-ancestry probabilities at each marker for the admixed sample's first and
+ancestry probabilities for the alleles on a study sample's first and
 second haplotypes are reported in the **ANP1** and **ANP2** FORMAT subfields.
 The integer that identifies each ancestry is given in the
 "##ANCESTRY=<...>" meta-information line.
 
 The output **global ancestry** file (.global.anc.gz) contains the
-estimated global ancestry proportions for each admixed sample.
-The global ancestry file has the same format as the optional input
-**gt-ancestries** file
+estimated global ancestry proportions for each study sample.
+The output global ancestry file has the same format as the input
+**global ancestry** file specified with the optional 
+[**gt-ancestries**](#other-optional-parameters) parameter
 (see [Global ancestry file format](#global-ancestry-file-format)).
 
 [Contents](#contents)
@@ -281,11 +282,11 @@ the global ancestry proportions for a set of samples. If there are
 $A$ ancestries, each line of a **global ancestry** file has $A + 1$ fields.
 The first line of a **global ancestry** file is a header line.  The
 first field of the header line is `SAMPLE`, and the remaining fields
-are the $A$ ancestry identifiers. The first field in each subsequent line
-is a sample identifier, and the remaining $A$ fields are the
-proportions of the genome having the ancestry given in the corresponding
-fields of the header line.  A sample identifier is not permitted to appear
-more than once in the first column.
+are the $A$ ancestry names. The first field in each subsequent line
+is a study sample identifier, and the remaining $A$ fields are the
+sample's ancestry proportions for the ancestries in the header line. A 
+sample identifier is not permitted to appear more than once in the first 
+column.
 
 [Contents](#contents)
 
@@ -405,7 +406,7 @@ The **flare** program is licensed under the Apache License, Version 2.0
 https://www.apache.org/licenses/LICENSE-2.0.
 
 If you use **flare** in a published analysis, please report the program
-version printed in the **log** file and cite the article describing
+version printed in the log file and cite the article describing
 the **flare** method:
 
 > S R Browning, R K Waples, B L Browning (2023). Fast, accurate local ancestry
