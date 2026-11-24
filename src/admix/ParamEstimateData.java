@@ -79,7 +79,7 @@ public class ParamEstimateData {
     }
 
     private static double sum(DoubleAdder[] daa) {
-        int sum = 0;
+        double sum = 0;
         for (DoubleAdder da : daa) {
             sum += da.sum();
         }
